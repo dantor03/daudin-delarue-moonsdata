@@ -17,7 +17,7 @@ from ..plots import plot_decision_boundary
 
 
 # =============================================================================
-# EXPERIMENTO B 
+# EXPERIMENTO B
 #   Efecto del parámetro de regularización entrópica ε
 # =============================================================================
 def experiment_B(epsilons=None, n_epochs: int = 700):
@@ -111,7 +111,8 @@ def experiment_B(epsilons=None, n_epochs: int = 700):
     plt.tight_layout()
     out = os.path.join(OUTPUT_DIR, 'B1_convergence_curves.png')
     plt.savefig(out, dpi=150, bbox_inches='tight', facecolor=DARK_BG)
-    plt.close(); print(f"\n  → {out}")
+    plt.close()
+    print(f"\n  → {out}")
 
     # ── B2: Fronteras de decisión ────────────────────────────────────────────
     fig, axes = plt.subplots(1, n_eps, figsize=(5 * n_eps, 5))
@@ -128,7 +129,8 @@ def experiment_B(epsilons=None, n_epochs: int = 700):
     plt.tight_layout()
     out = os.path.join(OUTPUT_DIR, 'B2_decision_boundaries.png')
     plt.savefig(out, dpi=150, bbox_inches='tight', facecolor=DARK_BG)
-    plt.close(); print(f"  → {out}")
+    plt.close()
+    print(f"  → {out}")
 
     # ── B3: Distribución de parámetros — forma Gibbs vs prior ν^∞ ────────────
     fig, axes = plt.subplots(1, n_eps, figsize=(5 * n_eps, 4))
@@ -141,7 +143,8 @@ def experiment_B(epsilons=None, n_epochs: int = 700):
         p_lo = np.percentile(params, 0.5)
         p_hi = np.percentile(params, 99.5)
         # Asegurar al menos ±0.5 de rango para ver la forma
-        p_lo = min(p_lo, -0.5); p_hi = max(p_hi, 0.5)
+        p_lo = min(p_lo, -0.5)
+        p_hi = max(p_hi, 0.5)
         # Prior teórico: ν^∞ ∝ exp(-ℓ(a)) con ℓ(a) = 0.05a⁴ + 0.5a²
         a_range = np.linspace(p_lo, p_hi, 400)
         log_pr  = -0.05 * a_range**4 - 0.5 * a_range**2
@@ -171,7 +174,8 @@ def experiment_B(epsilons=None, n_epochs: int = 700):
     plt.tight_layout()
     out = os.path.join(OUTPUT_DIR, 'B3_gibbs_parameter_dist.png')
     plt.savefig(out, dpi=150, bbox_inches='tight', facecolor=DARK_BG)
-    plt.close(); print(f"  → {out}")
+    plt.close()
+    print(f"  → {out}")
 
     # ── B4: Campo de velocidad F(x, t=0.5) ───────────────────────────────────
     fig, axes = plt.subplots(1, n_eps, figsize=(5 * n_eps, 5))
@@ -183,7 +187,8 @@ def experiment_B(epsilons=None, n_epochs: int = 700):
     )
 
     for ax, (eps, res) in zip(axes, results.items()):
-        m = res['model']; m.eval()
+        m = res['model']
+        m.eval()
         with torch.no_grad():
             vel = m.velocity(0.5, grid_v).cpu().numpy()
         U     = vel[:, 0].reshape(Xg.shape)
@@ -208,6 +213,7 @@ def experiment_B(epsilons=None, n_epochs: int = 700):
     plt.tight_layout()
     out = os.path.join(OUTPUT_DIR, 'B4_velocity_field.png')
     plt.savefig(out, dpi=150, bbox_inches='tight', facecolor=DARK_BG)
-    plt.close(); print(f"  → {out}")
+    plt.close()
+    print(f"  → {out}")
 
     return results

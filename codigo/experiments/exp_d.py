@@ -10,7 +10,7 @@ import torch
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 
-from ..config import SEED, DEVICE, OUTPUT_DIR, DARK_BG, PANEL_BG, TXT, GRID_C, style_ax
+from ..config import DEVICE, OUTPUT_DIR, DARK_BG, PANEL_BG, TXT, GRID_C, style_ax
 from ..data import get_moons
 from ..model import MeanFieldResNet
 from ..train import train, mu_pl_estimate
@@ -245,7 +245,8 @@ def experiment_D(n_seeds: int = 10, n_epochs: int = 500):
     # — subpanel μ̂ —
     bp_mu = ax02a.boxplot([mu_e0, mu_e05], positions=[1, 2], **_box_kw)
     for patch, c in zip(bp_mu['boxes'], ['#e74c3c', '#2ecc71']):
-        patch.set_facecolor(c); patch.set_alpha(0.75)
+        patch.set_facecolor(c)
+        patch.set_alpha(0.75)
     ax02a.set_xticks([1, 2])
     ax02a.set_xticklabels(['ε=0', 'ε=0.5'], color=TXT, fontsize=8)
     ax02a.axhline(0, color=GRID_C, lw=1.0, ls='--', alpha=0.7)
@@ -254,7 +255,8 @@ def experiment_D(n_seeds: int = 10, n_epochs: int = 500):
     # — subpanel J* —
     bp_js = ax02b.boxplot([js_e0, js_e05], positions=[1, 2], **_box_kw)
     for patch, c in zip(bp_js['boxes'], ['#e74c3c', '#2ecc71']):
-        patch.set_facecolor(c); patch.set_alpha(0.75)
+        patch.set_facecolor(c)
+        patch.set_alpha(0.75)
     ax02b.set_xticks([1, 2])
     ax02b.set_xticklabels(['ε=0', 'ε=0.5'], color=TXT, fontsize=8)
     style_ax(ax02b, r'$J^*$ entre init seeds', '', r'$J^*$')
@@ -296,7 +298,8 @@ def experiment_D(n_seeds: int = 10, n_epochs: int = 500):
 
     # Superponer 6 fronteras de decisión (isocurva P=0.5)
     for i, r in enumerate(d2_results[0.5][:6]):
-        m = r['model']; m.eval()
+        m = r['model']
+        m.eval()
         with torch.no_grad():
             Z = torch.sigmoid(m(grid_c)).cpu().numpy().reshape(xx_c.shape)
         ax12.contour(xx_c, yy_c, Z, levels=[0.5],
@@ -348,7 +351,8 @@ def experiment_D(n_seeds: int = 10, n_epochs: int = 500):
         # Solo dibujar fronteras de runs que convergieron (acc ≥ 0.95)
         if r['hist']['accuracy'][-1] < 0.95:
             continue
-        m = r['model']; m.eval()
+        m = r['model']
+        m.eval()
         with torch.no_grad():
             Z = torch.sigmoid(m(grid_d3)).cpu().numpy().reshape(xx_d3.shape)
         ax22.contour(xx_d3, yy_d3, Z, levels=[0.5],

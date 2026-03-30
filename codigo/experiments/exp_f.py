@@ -10,7 +10,7 @@ import torch
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 
-from ..config import SEED, DEVICE, OUTPUT_DIR, DARK_BG, PANEL_BG, TXT, style_ax
+from ..config import DEVICE, OUTPUT_DIR, DARK_BG, PANEL_BG, TXT, style_ax
 from ..data import get_circles
 from ..model import MeanFieldResNet
 from ..train import train
@@ -139,7 +139,7 @@ def experiment_F(n_seeds: int = 10, n_epochs: int = 700):
     Rbar_F2 = np.array([r['Rbar'] for r in results_F2])
     print(f"\n  R̄ medio F1 (datos): {Rbar_F1.mean():.4f} ± {Rbar_F1.std():.4f}")
     print(f"  R̄ medio F2 (init):  {Rbar_F2.mean():.4f} ± {Rbar_F2.std():.4f}")
-    print(f"  R̄≈0 → ν* isotrópico (predicción de simetría circles ✓)")
+    print("  R̄≈0 → ν* isotrópico (predicción de simetría circles ✓)")
 
     # ── Figura F ──────────────────────────────────────────────────────────────
     SEED_CMAP = plt.cm.tab10

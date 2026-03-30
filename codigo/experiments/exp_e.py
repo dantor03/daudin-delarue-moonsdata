@@ -10,7 +10,7 @@ import torch
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 
-from ..config import SEED, DEVICE, OUTPUT_DIR, DARK_BG, PANEL_BG, TXT, style_ax
+from ..config import DEVICE, OUTPUT_DIR, DARK_BG, PANEL_BG, TXT, style_ax
 from ..data import get_moons
 from ..model import MeanFieldResNet
 from ..train import train
@@ -232,7 +232,8 @@ def experiment_E(results_eps: dict):
             ax20.annotate(str(m), (c0[m], cT[m]),
                           fontsize=6, color=TXT, alpha=0.7,
                           xytext=(3, 3), textcoords='offset points')
-    ax20.set_xlim(0, lim); ax20.set_ylim(0, lim)
+    ax20.set_xlim(0, lim)
+    ax20.set_ylim(0, lim)
     style_ax(ax20,
              r'Contribución neuronal $c_m(t)$: $t=0$ vs $t=T$'
              '\n' r'ε=0.01  |  ▲ diagonal: más activas al final',
@@ -326,7 +327,6 @@ def experiment_E2(n_seeds: int = 10, n_epochs: int = 500):
     def get_params(model):
         with torch.no_grad():
             W1w = model.velocity.W1.weight.cpu().numpy()   # (M, d1+1)
-            W1b = model.velocity.W1.bias.cpu().numpy()     # (M,)
             W0w = model.velocity.W0.weight.cpu().numpy()   # (d1, M)
         a1 = W1w[:, :2]   # (M, 2)
         a0 = W0w.T        # (M, 2)

@@ -1,8 +1,6 @@
 import torch
 import torch.nn as nn
 
-from .config import DEVICE
-
 
 # =============================================================================
 # § 2  CAMPO VECTORIAL PROTOTÍPICO  b(x, a) = σ(a₁·x + a₂)·a₀

@@ -14,7 +14,7 @@ from ..train import mu_pl_estimate
 
 
 # =============================================================================
-# EXPERIMENTO C 
+# EXPERIMENTO C
 #   Verificación empírica de la desigualdad Polyak-Łojasiewicz
 # =============================================================================
 def experiment_C(results_eps: dict):

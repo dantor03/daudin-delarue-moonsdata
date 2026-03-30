@@ -19,7 +19,7 @@ from ..plots import plot_decision_boundary
 
 
 # =============================================================================
-# EXPERIMENTO A 
+# EXPERIMENTO A
 #   Neural ODE con regularización entrópica + evolución de features γ_t
 # =============================================================================
 def experiment_A(n_epochs: int = 800):
@@ -151,7 +151,8 @@ def experiment_A(n_epochs: int = 800):
     yq = np.percentile(all_c[:, 1], [1, 99])
     cx, cy = (xq[0]+xq[1])/2, (yq[0]+yq[1])/2
     half   = max(xq[1]-xq[0], yq[1]-yq[0])/2 + 0.5
-    ax_tr.set_xlim(cx-half, cx+half); ax_tr.set_ylim(cy-half, cy+half)
+    ax_tr.set_xlim(cx-half, cx+half)
+    ax_tr.set_ylim(cy-half, cy+half)
     ax_tr.set_aspect('equal')
     style_ax(ax_tr,
              'Trayectorias $X_t$  (t=0 $\\bullet$ → T $\\star$)\n'

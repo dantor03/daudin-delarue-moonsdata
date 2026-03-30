@@ -4,8 +4,7 @@ import warnings
 import numpy as np
 import torch
 import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt  # noqa: E402
+matplotlib.use('Agg')  # noqa: E402
 
 warnings.filterwarnings('ignore')
 
@@ -30,9 +29,12 @@ COLORS_EPS = ['#e74c3c', '#f39c12', '#2ecc71', '#3498db', '#9b59b6']
 
 def style_ax(ax, title='', xlabel='', ylabel=''):
     ax.set_facecolor(PANEL_BG)
-    if title:  ax.set_title(title,  color=TXT, fontsize=9.5, pad=6)
-    if xlabel: ax.set_xlabel(xlabel, color=TXT, fontsize=8)
-    if ylabel: ax.set_ylabel(ylabel, color=TXT, fontsize=8)
+    if title:
+        ax.set_title(title, color=TXT, fontsize=9.5, pad=6)
+    if xlabel:
+        ax.set_xlabel(xlabel, color=TXT, fontsize=8)
+    if ylabel:
+        ax.set_ylabel(ylabel, color=TXT, fontsize=8)
     ax.tick_params(colors=TXT, labelsize=7)
     for s in ax.spines.values():
         s.set_edgecolor(GRID_C)

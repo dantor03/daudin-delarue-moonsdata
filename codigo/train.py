@@ -69,10 +69,12 @@ def train(model, X, y, epsilon,
         # Gradient clipping: evita explosiones en pasos con gradiente grande
         # (puede ocurrir en los primeros epochs cuando los params están lejos de J*)
         nn.utils.clip_grad_norm_(model.parameters(), max_norm=5.0)
-        opt.step(); sch.step()
+        opt.step()
+        sch.step()
 
         lv = loss.item()
-        if lv < L_min: L_min = lv         # J* aproximado = mínimo observado hasta ahora
+        if lv < L_min:
+            L_min = lv         # J* aproximado = mínimo observado hasta ahora
         # Ratio PL provisional (online): se recalculará con J* global al final
         excess = max(lv - L_min, 1e-10)
         pl = gn2 / (2.0 * excess) if excess > 1e-9 else float('nan')
