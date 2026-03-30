@@ -35,6 +35,9 @@ daudin-moons = "codigo.main:main"
 Repository = "https://github.com/dantor03/daudin-delarue-moons"
 Paper      = "https://arxiv.org/abs/2507.08486"
 
+[tool.setuptools.packages.find]
+include = ["codigo*"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py310"
