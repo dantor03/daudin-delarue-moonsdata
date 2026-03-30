@@ -32,7 +32,7 @@ dev = [
 daudin-moons = "codigo.main:main"
 
 [project.urls]
-Repository = "https://github.com/dantor03/daudin-delarue-moons"
+Repository = "https://github.com/dantor03/daudin-delarue-moonsdata"
 Paper      = "https://arxiv.org/abs/2507.08486"
 
 [tool.setuptools.packages.find]

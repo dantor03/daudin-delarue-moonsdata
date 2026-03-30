@@ -3,7 +3,7 @@
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue?logo=python)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![arXiv](https://img.shields.io/badge/arXiv-2507.08486-b31b1b.svg)](https://arxiv.org/abs/2507.08486)
-[![CI](https://github.com/dantor03/daudin-delarue-moons/actions/workflows/ci.yml/badge.svg)](https://github.com/dantor03/daudin-delarue-moons/actions)
+[![CI](https://github.com/dantor03/daudin-delarue-moonsdata/actions/workflows/ci.yml/badge.svg)](https://github.com/dantor03/daudin-delarue-moonsdata/actions)
 
 Verificación empírica de **Daudin & Delarue (2025)**: Neural ODEs de campo medio con regularización entrópica, la condición de Polyak-Łojasiewicz y garantías de convergencia exponencial — aplicadas al dataset `make_moons`.
 
@@ -58,8 +58,8 @@ con $\ell(a) = c_1|a|^4 + c_2|a|^2$ (supercoercivo). Para cualquier $\varepsilon
 ## Instalación
 
 ```bash
-git clone https://github.com/dantor03/daudin-delarue-moons.git
-cd daudin-delarue-moons
+git clone https://github.com/dantor03/daudin-delarue-moonsdata.git
+cd daudin-delarue-moonsdata
 pip install -r requirements.txt
 ```
 
@@ -98,7 +98,7 @@ Las figuras se guardan en `figuras/`.
 ## Estructura del proyecto
 
 ```
-daudin-delarue-moons/
+daudin-delarue-moonsdata/
 ├── codigo/
 │   ├── config.py          # Constantes, dispositivo, tema visual
 │   ├── data.py            # get_moons(), get_circles()
