@@ -1,0 +1,5 @@
+matplotlib==3.10.0
+numpy @ file:///private/var/folders/c_/qfmhj66j0tn016nkx_th4hxm0000gp/T/abs_b7iptlxgej/croot/numpy_and_numpy_base_1708638622773/work/dist/numpy-1.26.4-cp310-cp310-macosx_10_9_x86_64.whl#sha256=9699ffbfee60303323e1bd3d1e591a5fd3b8960e72a61fc675d2c4bc1cb76148
+scikit-learn==1.7.2
+torch==2.2.2
+torchdiffeq==0.2.5

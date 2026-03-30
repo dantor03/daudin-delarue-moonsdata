@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "daudin-delarue-moons"
+version = "1.0.0"
+description = "Empirical verification of Daudin & Delarue (2025) on make_moons"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+keywords = ["neural-ode", "mean-field", "entropic-regularization", "polyak-lojasiewicz"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "matplotlib>=3.9",
+    "numpy>=1.26",
+    "scikit-learn>=1.4",
+    "torch>=2.2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "ruff>=0.4",
+]
+
+[project.scripts]
+daudin-moons = "codigo.main:main"
+
+[project.urls]
+Repository = "https://github.com/dantor03/daudin-delarue-moons"
+Paper      = "https://arxiv.org/abs/2507.08486"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+ignore = ["E501"]
