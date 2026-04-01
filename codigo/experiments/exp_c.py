@@ -69,7 +69,8 @@ def experiment_C(results_eps: dict):
     print("=" * 62)
 
     epsilons = list(results_eps.keys())
-    mu_list  = []
+    mu_list  = [mu_pl_estimate(res['hist']) for res in results_eps.values()]
+    mu_min   = min(m for m in mu_list if m > 0)
 
     fig = plt.figure(figsize=(20, 14))
     fig.patch.set_facecolor(DARK_BG)
@@ -89,12 +90,13 @@ def experiment_C(results_eps: dict):
                       color=res['color'], alpha=0.25, s=6, label=f'ε={eps}')
 
     xl = np.logspace(-5, 0, 150)
-    ax_ll.loglog(xl, 2.0 * xl, 'w--',  lw=2.0, label='$c=1$ (PL mín.)', zorder=10)
-    ax_ll.loglog(xl, 20.0 * xl, 'w:', lw=1.5, label='$c=10$',           zorder=10)
+    ax_ll.loglog(xl, 2.0 * xl, 'w--', lw=1.5, label='$c=1$', zorder=10)
+    ax_ll.loglog(xl, 2.0 * mu_min * xl, color='#f39c12', lw=2.0, ls='-',
+                 label=f'$2\\hat{{\\mu}}(J-J^*)$  $\\hat{{\\mu}}={mu_min:.4f}$', zorder=11)
     style_ax(ax_ll,
              'Verificación PL  (log-log)\n'
              r'$\|\nabla J\|^2$ vs $(J - J^*)$'
-             r'  —  pendiente $\approx 1$ confirma PL con $\hat{\mu}\approx 0.002$',
+             r'  —  puntos por encima de la línea naranja confirman PL',
              '$J(\\theta) - J^*$', r'$\|\nabla J(\theta)\|^2$')
     ax_ll.legend(facecolor=PANEL_BG, labelcolor=TXT, fontsize=7, markerscale=3)
 
@@ -112,10 +114,6 @@ def experiment_C(results_eps: dict):
 
     # ── C3: μ_PL estimado vs ε ───────────────────────────────────────────────
     ax_mu = fig.add_subplot(gs[1, 0])
-    for eps, res in results_eps.items():
-        mu = mu_pl_estimate(res['hist'])
-        mu_list.append(mu)
-
     bars = ax_mu.bar(range(len(epsilons)), mu_list,
                      color=[results_eps[e]['color'] for e in epsilons],
                      edgecolor='white', linewidth=0.6)
