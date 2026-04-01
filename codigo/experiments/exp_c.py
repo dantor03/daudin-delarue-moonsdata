@@ -108,7 +108,7 @@ def experiment_C(results_eps: dict):
         ax_exp.semilogy(excess, color=res['color'], lw=1.5, label=f'ε={eps}')
     style_ax(ax_exp,
              'Excess cost $J(\\theta^s) - J^*$  (semilog)\n'
-             'Línea recta → convergencia EXPONENCIAL garantizada por PL',
+             'Caída exponencial en fase inicial; aplanamiento final = cosine annealing (no viola PL)',
              'Época $s$', r'$J(\theta^s) - J^*$  (log)')
     ax_exp.legend(facecolor=PANEL_BG, labelcolor=TXT, fontsize=8)
 
@@ -130,20 +130,20 @@ def experiment_C(results_eps: dict):
              r'$\hat{\mu} > 0$ para todo $\varepsilon > 0$  $\Rightarrow$  Meta-Teorema 2 ✓',
              'ε', '$\\hat{\\mu}_{PL}$')
 
-    # ── C4: Ratio PL vs época ─────────────────────────────────────────────────
+    # ── C4: Ratio PL vs época (escala log) ───────────────────────────────────
     ax_r = fig.add_subplot(gs[1, 1])
     for eps, res in results_eps.items():
         pl  = np.array(res['hist']['pl_ratio'])
-        idx = np.where(~np.isnan(pl) & (pl > 0) & (pl < 500))[0]
+        idx = np.where(~np.isnan(pl) & (pl > 0))[0]
         if len(idx) > 0:
-            ax_r.plot(idx, pl[idx], color=res['color'], lw=1.2,
-                      alpha=0.85, label=f'ε={eps}')
-    ax_r.axhline(0, color='white', lw=0.8, ls='--', alpha=0.5)
+            ax_r.semilogy(idx, pl[idx], color=res['color'], lw=1.2,
+                          alpha=0.85, label=f'ε={eps}')
+    ax_r.axhline(mu_min, color='#f39c12', lw=2.0, ls='-',
+                 label=f'$\\hat{{\\mu}}={mu_min:.4f}$', zorder=10)
     style_ax(ax_r,
-             r'Ratio PL:  $\|\nabla J\|^2 / (2(J-J^*))$ vs época' + '\n'
-             'Siempre ≥ $c > 0$ → condición PL satisfecha ✓',
-             'Época', 'Ratio PL')
-    ax_r.set_ylim(0, 300)
+             r'Ratio PL:  $\|\nabla J\|^2 / (2(J-J^*))$ vs época  (log)' + '\n'
+             'Siempre por encima de $\\hat{\\mu}$ (línea naranja) → PL verificada ✓',
+             'Época', 'Ratio PL  (log)')
     ax_r.legend(facecolor=PANEL_BG, labelcolor=TXT, fontsize=8)
 
     fig.suptitle(
