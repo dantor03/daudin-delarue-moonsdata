@@ -64,6 +64,7 @@ def experiment_A(n_epochs: int = 800):
     X, y, X_np, y_np = get_moons()
 
     print("  Entrenando modelo base  ε=0.01, M=64, T=1.0, n_steps=10 …")
+    torch.manual_seed(SEED)
     model = MeanFieldResNet(d1=2, M=64, T=1.0, n_steps=10).to(DEVICE)
     hist  = train(model, X, y, epsilon=0.01, n_epochs=n_epochs, verbose=True)
     acc   = hist['accuracy'][-1]

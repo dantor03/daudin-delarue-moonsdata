@@ -10,7 +10,7 @@ import torch.optim as optim
 # § 4  BUCLE DE ENTRENAMIENTO
 # =============================================================================
 def train(model, X, y, epsilon,
-          lr: float = 0.005, n_epochs: int = 800, verbose: bool = True):
+          lr: float = 0.01, n_epochs: int = 800, verbose: bool = True):
     """
     Bucle de entrenamiento con Adam + cosine annealing.
 

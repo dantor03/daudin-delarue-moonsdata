@@ -81,9 +81,9 @@ class MeanFieldVelocity(nn.Module):
         #   • Evita que la ODE "explote" en los primeros pasos de entrenamiento
         #   • Coherente con la teoría: parámetros cerca del prior ν^∞ (que también
         #     concentra masa cerca del origen) al inicio del entrenamiento
-        nn.init.normal_(self.W1.weight, std=0.1)
+        nn.init.normal_(self.W1.weight, std=0.3)
         nn.init.zeros_(self.W1.bias)
-        nn.init.normal_(self.W0.weight, std=0.1)
+        nn.init.normal_(self.W0.weight, std=0.3)
 
     def forward(self, t: float, x: torch.Tensor) -> torch.Tensor:
         """
