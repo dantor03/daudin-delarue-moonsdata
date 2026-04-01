@@ -59,10 +59,8 @@ def experiment_B(epsilons=None, n_epochs: int = 700):
              Esperado: todas las ε convergen a ~100% acc; J* crece con ε
         B2 — Fronteras de decisión en ℝ² para cada ε
              Esperado: fronteras más suaves/regulares para ε mayor
-        B3 — Distribución de parámetros aprendidos θ vs prior ν^∞ ∝ e^{-ℓ}
-             Esperado: std(θ) decrece con ε (parámetros más concentrados)
-             Forma de Gibbs: histograma ≈ exp(-ℓ(a)) · exp(-términos de clasificación)
-        B4 — Campo de velocidad F(x, t=0.5) como quiver plot para cada ε
+        B3 — Campo de velocidad F(x, t=0.5) como quiver plot para cada ε
+             Dirección normalizada, color = magnitud.
              Dirección normalizada, color = magnitud.  Muestra cómo el campo
              empuja las lunas hacia la separabilidad en el tiempo medio t=T/2.
     """
@@ -132,52 +130,7 @@ def experiment_B(epsilons=None, n_epochs: int = 700):
     plt.close()
     print(f"  → {out}")
 
-    # ── B3: Distribución de parámetros — forma Gibbs vs prior ν^∞ ────────────
-    fig, axes = plt.subplots(1, n_eps, figsize=(5 * n_eps, 4))
-    fig.patch.set_facecolor(DARK_BG)
-
-    for ax, (eps, res) in zip(axes, results.items()):
-        params = np.concatenate([p.detach().cpu().numpy().ravel()
-                                 for p in res['model'].velocity.parameters()])
-        # Rango adaptativo: percentil 0.5–99.5 de los parámetros reales
-        p_lo = np.percentile(params, 0.5)
-        p_hi = np.percentile(params, 99.5)
-        # Asegurar al menos ±0.5 de rango para ver la forma
-        p_lo = min(p_lo, -0.5)
-        p_hi = max(p_hi, 0.5)
-        # Prior teórico: ν^∞ ∝ exp(-ℓ(a)) con ℓ(a) = 0.05a⁴ + 0.5a²
-        a_range = np.linspace(p_lo, p_hi, 400)
-        log_pr  = -0.05 * a_range**4 - 0.5 * a_range**2
-        log_pr -= log_pr.max()
-        prior   = np.exp(log_pr)
-        prior  /= np.trapz(prior, a_range)
-        params_in = params[(params >= p_lo) & (params <= p_hi)]
-        ax.hist(params_in, bins=70, density=True, alpha=0.75,
-                color=res['color'], edgecolor='none',
-                label='Parámetros $\\nu^*$')
-        ax.plot(a_range, prior, 'w--', lw=2,
-                label='$\\nu^\\infty \\propto e^{-\\ell}$')
-        # Texto informativo: std de los parámetros
-        std_p = params.std()
-        ax.text(0.97, 0.97, f'std={std_p:.3f}', transform=ax.transAxes,
-                ha='right', va='top', color=TXT, fontsize=8,
-                bbox=dict(facecolor=PANEL_BG, alpha=0.7, pad=2))
-        style_ax(ax, f'ε={eps}  — Gibbs form', '$a$', 'Densidad')
-        ax.set_xlim(p_lo, p_hi)
-        ax.legend(facecolor=PANEL_BG, labelcolor=TXT, fontsize=7)
-    fig.suptitle(
-        r'Distribución de parámetros óptimos $\nu^*$ vs prior $\nu^\infty$'
-        '\nForma de Gibbs del control óptimo (ec. 1.9 del paper)'
-        '\nMayor epsilon implica que los parámetros se acercan más al prior',
-        color=TXT, fontsize=11
-    )
-    plt.tight_layout()
-    out = os.path.join(OUTPUT_DIR, 'B3_gibbs_parameter_dist.png')
-    plt.savefig(out, dpi=150, bbox_inches='tight', facecolor=DARK_BG)
-    plt.close()
-    print(f"  → {out}")
-
-    # ── B4: Campo de velocidad F(x, t=0.5) ───────────────────────────────────
+    # ── B3: Campo de velocidad F(x, t=0.5) ───────────────────────────────────
     fig, axes = plt.subplots(1, n_eps, figsize=(5 * n_eps, 5))
     fig.patch.set_facecolor(DARK_BG)
     xv = np.linspace(-2.5, 2.5, 16)
@@ -211,7 +164,7 @@ def experiment_B(epsilons=None, n_epochs: int = 700):
         color=TXT, fontsize=11
     )
     plt.tight_layout()
-    out = os.path.join(OUTPUT_DIR, 'B4_velocity_field.png')
+    out = os.path.join(OUTPUT_DIR, 'B3_velocity_field.png')
     plt.savefig(out, dpi=150, bbox_inches='tight', facecolor=DARK_BG)
     plt.close()
     print(f"  → {out}")
