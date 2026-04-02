@@ -142,202 +142,98 @@ def experiment_F(n_seeds: int = 10, n_epochs: int = 700):
     print("  R̄≈0 → ν* isotrópico (predicción de simetría circles ✓)")
 
     # ── Figura F ──────────────────────────────────────────────────────────────
-    SEED_CMAP = plt.cm.tab10
-
-    fig = plt.figure(figsize=(21, 18))
+    fig, axes = plt.subplots(1, 3, figsize=(21, 6))
     fig.patch.set_facecolor(DARK_BG)
-    gs_fig = gridspec.GridSpec(3, 3, figure=fig, hspace=0.52, wspace=0.40)
 
-    # ── Helpers de figura ─────────────────────────────────────────────────────
-    def _loss_band(ax, results, title):
-        """Curvas de convergencia con banda ±1σ entre seeds."""
-        losses = np.array([r['hist']['loss'] for r in results])
-        mean_l = losses.mean(axis=0)
-        std_l  = losses.std(axis=0)
-        epochs = np.arange(len(mean_l))
-        for i, r in enumerate(results):
-            ax.plot(r['hist']['loss'], color=SEED_CMAP(i % 10),
-                    lw=0.7, alpha=0.35)
-        ax.plot(mean_l, color='white', lw=2.0, label='Media')
-        ax.fill_between(epochs, mean_l - std_l, mean_l + std_l,
-                        color='white', alpha=0.15, label='±1σ')
+    # ── Panel 0: curvas de pérdida F1 y F2 superpuestas ──────────────────────
+    ax0 = axes[0]
+    for results, color, label in [
+        (results_F1, '#e74c3c', 'F1 (datos)'),
+        (results_F2, '#3498db', 'F2 (init)'),
+    ]:
+        losses    = np.array([r['hist']['loss'] for r in results])
+        mean_l    = losses.mean(axis=0)
+        std_l     = losses.std(axis=0)
+        epochs    = np.arange(len(mean_l))
         Jstar_arr = np.array([r['hist']['J_star'] for r in results])
-        ax.text(0.97, 0.97,
-                f'σ(J*)={Jstar_arr.std():.4f}\nJ*={Jstar_arr.mean():.4f}±{Jstar_arr.std():.4f}',
-                transform=ax.transAxes, ha='right', va='top',
-                color=TXT, fontsize=7.5,
-                bbox=dict(facecolor=PANEL_BG, alpha=0.75, pad=2))
-        ax.set_xlim(0, len(mean_l))
-        style_ax(ax, title, 'Época', 'J (BCE + ε·reg)')
-        ax.legend(facecolor=PANEL_BG, labelcolor=TXT, fontsize=7)
+        for r in results:
+            ax0.plot(r['hist']['loss'], color=color, lw=0.7, alpha=0.25)
+        ax0.plot(mean_l, color=color, lw=2.0,
+                 label=f'{label}  J*={Jstar_arr.mean():.4f}±{Jstar_arr.std():.4f}')
+        ax0.fill_between(epochs, mean_l - std_l, mean_l + std_l,
+                         color=color, alpha=0.15)
+    style_ax(ax0,
+             'Convergencia — make_circles  (ε=0.01)\n'
+             'Banda = ±1σ sobre 10 semillas',
+             'Época', 'J (BCE + ε·reg)')
+    ax0.legend(facecolor=PANEL_BG, labelcolor=TXT, fontsize=7)
 
-    def _scatter_a1(ax, results, title, X_ref=None, y_ref=None):
-        """
-        Scatter 2D de los vectores a₁ᵐ para todos los runs superpuestos.
-        Si ν* es isotrópico, la nube de puntos debe formar un anillo.
-        """
-        if X_ref is not None:
-            ax.scatter(X_ref[y_ref == 0, 0], X_ref[y_ref == 0, 1],
-                       c='#ff6b6b', s=4, alpha=0.10, zorder=1)
-            ax.scatter(X_ref[y_ref == 1, 0], X_ref[y_ref == 1, 1],
-                       c='#74b9ff', s=4, alpha=0.10, zorder=1)
-        for i, r in enumerate(results):
-            a1 = r['a1']
-            ax.scatter(a1[:, 0], a1[:, 1],
-                       color=SEED_CMAP(i % 10), s=22,
-                       alpha=0.55, edgecolors='none')
-        # Círculo de referencia con radio = norma media de a₁
-        r_med = np.median([np.linalg.norm(r['a1'], axis=1).mean()
-                           for r in results])
-        theta_ref = np.linspace(0, 2 * np.pi, 300)
-        ax.plot(r_med * np.cos(theta_ref), r_med * np.sin(theta_ref),
-                color='white', lw=1.2, ls='--', alpha=0.5,
-                label=f'r̄={r_med:.2f}')
-        ax.set_aspect('equal')
-        ax.legend(facecolor=PANEL_BG, labelcolor=TXT, fontsize=7)
-        style_ax(ax, title, r'$a_1^m[0]$', r'$a_1^m[1]$')
-
-    def _angle_hist(ax, results, title):
-        """
-        Histograma del ángulo polar θ = arctan2(a₁[1], a₁[0]).
-        Si ν* es isotrópico → distribución plana (uniforme en [-π, π]).
-        """
-        bins   = np.linspace(-np.pi, np.pi, 25)
-        bin_c  = 0.5 * (bins[:-1] + bins[1:])
-        for i, r in enumerate(results):
+    # ── Panel 1: histograma de ángulo θ(a₁) — banda media ± std ─────────────
+    ax1 = axes[1]
+    bins  = np.linspace(-np.pi, np.pi, 25)
+    bin_c = 0.5 * (bins[:-1] + bins[1:])
+    for results, color, label in [
+        (results_F1, '#e74c3c', 'F1 (datos)'),
+        (results_F2, '#3498db', 'F2 (init)'),
+    ]:
+        hists = []
+        for r in results:
             angles = np.arctan2(r['a1'][:, 1], r['a1'][:, 0])
             counts, _ = np.histogram(angles, bins=bins)
-            ax.plot(bin_c, counts / counts.sum(),
-                    color=SEED_CMAP(i % 10), lw=1.3, alpha=0.55, marker='.')
-        uniform_h = 1.0 / (len(bins) - 1)
-        ax.axhline(uniform_h, color='white', lw=2.0, ls='--', alpha=0.80,
-                   label='Uniforme')
-        ax.set_xticks([-np.pi, -np.pi / 2, 0, np.pi / 2, np.pi])
-        ax.set_xticklabels([r'$-\pi$', r'$-\pi/2$', '0', r'$\pi/2$', r'$\pi$'],
-                           color=TXT, fontsize=7.5)
-        style_ax(ax, title,
-                 r'$\theta = \arctan2(a_1^m[1],\,a_1^m[0])$', 'Densidad')
-        ax.legend(facecolor=PANEL_BG, labelcolor=TXT, fontsize=7)
+            hists.append(counts / counts.sum())
+        hists   = np.array(hists)
+        mean_h  = hists.mean(axis=0)
+        std_h   = hists.std(axis=0)
+        ax1.plot(bin_c, mean_h, color=color, lw=2.0, label=label)
+        ax1.fill_between(bin_c, mean_h - std_h, mean_h + std_h,
+                         color=color, alpha=0.20)
+    uniform_h = 1.0 / (len(bins) - 1)
+    ax1.axhline(uniform_h, color='white', lw=2.0, ls='--', alpha=0.80,
+                label='Uniforme')
+    ax1.set_xticks([-np.pi, -np.pi / 2, 0, np.pi / 2, np.pi])
+    ax1.set_xticklabels([r'$-\pi$', r'$-\pi/2$', '0', r'$\pi/2$', r'$\pi$'],
+                        color=TXT, fontsize=8)
+    style_ax(ax1,
+             r'Histograma de $\theta(a_1^m)$ — media ± std sobre 10 semillas'
+             '\n' r'Curva plana = $\nu^*$ isotrópico (predicción de simetría SO(2))',
+             r'$\theta = \arctan2(a_1[1],\,a_1[0])$', 'Densidad')
+    ax1.legend(facecolor=PANEL_BG, labelcolor=TXT, fontsize=8)
 
-    # ── Fila 0: F1 ────────────────────────────────────────────────────────────
-    ax00 = fig.add_subplot(gs_fig[0, 0])
-    _loss_band(ax00, results_F1,
-               r'F1 — $\gamma_0$ aleatoria, $\theta_0$ fija  (ε=0.01)'
-               '\n10 datasets make_circles distintos')
-
-    # Datos de referencia = primer dataset de F1
-    X_ref_F1 = results_F1[0]['X_np']
-    y_ref_F1 = results_F1[0]['y_np']
-    ax01 = fig.add_subplot(gs_fig[0, 1])
-    _scatter_a1(ax01, results_F1,
-                r'F1 — Distribución 2D de $a_1^m$  (10 datasets)'
-                '\n' r'¿forma anular? → simetría rotacional de circles',
-                X_ref=X_ref_F1, y_ref=y_ref_F1)
-
-    ax02 = fig.add_subplot(gs_fig[0, 2])
-    _angle_hist(ax02, results_F1,
-                r'F1 — Histograma de $\theta(a_1^m)$'
-                '\n' r'Curva plana = $\nu^*$ isotrópico (predicción de simetría)')
-
-    # ── Fila 1: F2 ────────────────────────────────────────────────────────────
-    ax10 = fig.add_subplot(gs_fig[1, 0])
-    _loss_band(ax10, results_F2,
-               r'F2 — $\gamma_0$ fija, $\theta_0$ aleatoria  (ε=0.01)'
-               '\n10 inicializaciones de parámetros distintas')
-
-    ax11 = fig.add_subplot(gs_fig[1, 1])
-    _scatter_a1(ax11, results_F2,
-                r'F2 — Distribución 2D de $a_1^m$  (10 inits)'
-                '\n' r'¿el anillo se preserva con distintos $\theta_0$?',
-                X_ref=X_np_fixed, y_ref=y_np_fixed)
-
-    ax12 = fig.add_subplot(gs_fig[1, 2])
-    _angle_hist(ax12, results_F2,
-                r'F2 — Histograma de $\theta(a_1^m)$'
-                '\n' r'Estabilidad angular entre inicializaciones')
-
-    # ── Fila 2: síntesis ──────────────────────────────────────────────────────
-
-    # (2,0): R̄ por run — test cuantitativo de isotropía
-    ax20 = fig.add_subplot(gs_fig[2, 0])
+    # ── Panel 2: R̄ por run — test cuantitativo de isotropía ─────────────────
+    ax2 = axes[2]
     x_F1 = np.arange(n_seeds)
     x_F2 = np.arange(n_seeds) + n_seeds + 1.5
-    ax20.bar(x_F1, Rbar_F1, color='#e74c3c', alpha=0.82, width=0.8,
-             label=f'F1 (datos):  R̄={Rbar_F1.mean():.3f}')
-    ax20.bar(x_F2, Rbar_F2, color='#3498db', alpha=0.82, width=0.8,
-             label=f'F2 (init):   R̄={Rbar_F2.mean():.3f}')
-    ax20.axhline(0.0, color='white', lw=1.0, ls='--', alpha=0.4)
-    # Anotaciones de valor
+    ax2.bar(x_F1, Rbar_F1, color='#e74c3c', alpha=0.82, width=0.8,
+            label=f'F1 (datos):  R̄={Rbar_F1.mean():.3f}')
+    ax2.bar(x_F2, Rbar_F2, color='#3498db', alpha=0.82, width=0.8,
+            label=f'F2 (init):   R̄={Rbar_F2.mean():.3f}')
+    ax2.axhline(0.0, color='white', lw=1.0, ls='--', alpha=0.4)
     for xi, v in zip(x_F1, Rbar_F1):
-        ax20.text(xi, v + 0.005, f'{v:.2f}', ha='center', va='bottom',
-                  color=TXT, fontsize=6.5)
+        ax2.text(xi, v + 0.005, f'{v:.2f}', ha='center', va='bottom',
+                 color=TXT, fontsize=6.5)
     for xi, v in zip(x_F2, Rbar_F2):
-        ax20.text(xi, v + 0.005, f'{v:.2f}', ha='center', va='bottom',
-                  color=TXT, fontsize=6.5)
-    ax20.set_xticks(list(x_F1) + list(x_F2))
-    ax20.set_xticklabels(
+        ax2.text(xi, v + 0.005, f'{v:.2f}', ha='center', va='bottom',
+                 color=TXT, fontsize=6.5)
+    ax2.set_xticks(list(x_F1) + list(x_F2))
+    ax2.set_xticklabels(
         [f'F1-{s}' for s in SEEDS] + [f'F2-{s}' for s in SEEDS],
         rotation=50, fontsize=6.5, color=TXT)
-    ax20.set_ylim(0, max(Rbar_F1.max(), Rbar_F2.max()) * 1.25)
-    style_ax(ax20,
+    ax2.set_ylim(0, max(Rbar_F1.max(), Rbar_F2.max()) * 1.25)
+    style_ax(ax2,
              r'Longitud resultante media $\bar{R}$ del ángulo de $a_1^m$'
              '\n' r'$\bar{R} \approx 0$ = isotrópico  |  $\bar{R} \approx 1$ = concentrado',
              'Run', r'$\bar{R}$')
-    ax20.legend(facecolor=PANEL_BG, labelcolor=TXT, fontsize=8)
-
-    # (2,1): norma ||a₁|| media ± std por run — escala de las proyecciones
-    ax21 = fig.add_subplot(gs_fig[2, 1])
-    nm_F1 = [np.linalg.norm(r['a1'], axis=1).mean() for r in results_F1]
-    ns_F1 = [np.linalg.norm(r['a1'], axis=1).std()  for r in results_F1]
-    nm_F2 = [np.linalg.norm(r['a1'], axis=1).mean() for r in results_F2]
-    ns_F2 = [np.linalg.norm(r['a1'], axis=1).std()  for r in results_F2]
-    ax21.errorbar(SEEDS, nm_F1, yerr=ns_F1,
-                  fmt='o-', color='#e74c3c', capsize=4, lw=1.8,
-                  label='F1 (datos)')
-    ax21.errorbar(SEEDS, nm_F2, yerr=ns_F2,
-                  fmt='s--', color='#3498db', capsize=4, lw=1.8,
-                  label='F2 (init)')
-    style_ax(ax21,
-             r'Escala de $a_1^m$: $\overline{\|a_1^m\|_2}$ ± std por run'
-             '\n' r'Mide cuán "agresiva" es la proyección espacial de cada run',
-             'Semilla $s$', r'$\overline{\|a_1^m\|_2}$')
-    ax21.legend(facecolor=PANEL_BG, labelcolor=TXT, fontsize=8)
-
-    # (2,2): curvas de importancia ||a₀|| para todos los runs (F1 + F2)
-    ax22 = fig.add_subplot(gs_fig[2, 2])
-    for i, r in enumerate(results_F1):
-        imp_s = np.sort(importance(r['a0']))[::-1]
-        ax22.plot(np.arange(1, len(imp_s) + 1), imp_s,
-                  color='#e74c3c', lw=0.9, alpha=0.35)
-    for i, r in enumerate(results_F2):
-        imp_s = np.sort(importance(r['a0']))[::-1]
-        ax22.plot(np.arange(1, len(imp_s) + 1), imp_s,
-                  color='#3498db', lw=0.9, alpha=0.35)
-    # Curvas medias
-    mean_imp_F1 = np.sort(
-        np.mean([importance(r['a0']) for r in results_F1], axis=0))[::-1]
-    mean_imp_F2 = np.sort(
-        np.mean([importance(r['a0']) for r in results_F2], axis=0))[::-1]
-    ax22.plot(np.arange(1, len(mean_imp_F1) + 1), mean_imp_F1,
-              color='#e74c3c', lw=2.5, label='F1 media')
-    ax22.plot(np.arange(1, len(mean_imp_F2) + 1), mean_imp_F2,
-              color='#3498db', lw=2.5, ls='--', label='F2 media')
-    style_ax(ax22,
-             r'Importancias $\|a_0^m\|_2$ ordenadas — todos los runs'
-             '\n' r'Estabilidad del rango efectivo entre semillas',
-             'Rank (neurona)', r'$\|a_0^m\|_2$')
-    ax22.legend(facecolor=PANEL_BG, labelcolor=TXT, fontsize=8)
+    ax2.legend(facecolor=PANEL_BG, labelcolor=TXT, fontsize=8)
 
     # ── Título global ─────────────────────────────────────────────────────────
     fig.suptitle(
-        r'Experimento F — Distribución de $\nu^*$ en make_circles'
-        r': simetría rotacional y robustez a semillas'
+        r'Experimento F — Simetría rotacional de $\nu^*$ en make\_circles  (ε=0.01)'
         '\n'
         r'F1: $\gamma_0$ aleatoria (10 datasets), $\theta_0$ fija  |  '
-        r'F2: $\gamma_0$ fija, $\theta_0$ aleatoria (10 inits)  |  ε=0.01',
+        r'F2: $\gamma_0$ fija, $\theta_0$ aleatoria (10 inits)',
         color=TXT, fontsize=11
     )
-    plt.tight_layout(rect=[0, 0, 1, 0.95])
+    plt.tight_layout(rect=[0, 0, 1, 0.90])
     out = os.path.join(OUTPUT_DIR, 'F_circles_parameter_distribution.png')
     plt.savefig(out, dpi=150, bbox_inches='tight', facecolor=DARK_BG)
     plt.close()
