@@ -366,82 +366,38 @@ def experiment_E2(n_seeds: int = 10, n_epochs: int = 500):
               f"acc={hist['accuracy'][-1]:.3f}")
 
     # ── Figura E2 ─────────────────────────────────────────────────────────────
-    fig = plt.figure(figsize=(21, 12))
+    fig, axes = plt.subplots(1, 2, figsize=(14, 6))
     fig.patch.set_facecolor(DARK_BG)
-    gs  = gridspec.GridSpec(2, 3, figure=fig, hspace=0.50, wspace=0.38)
 
-    def _row(row_idx, results, subtitle):
-        """Dibuja la fila row_idx con los resultados de una variante E2."""
-
-        # (col 0) Scatter 2D de a₁, cada seed en un color distinto
-        ax0 = fig.add_subplot(gs[row_idx, 0])
-        for i, r in enumerate(results):
-            ax0.scatter(r['a1'][:, 0], r['a1'][:, 1],
-                        color=SEED_COLORS[i % len(SEED_COLORS)],
-                        s=20, alpha=0.65, edgecolors='none',
-                        label=f's={r["seed"]}')
-        style_ax(ax0,
-                 subtitle + '\n' r'Scatter $a_1^m \in \mathbb{R}^2$ por semilla',
-                 r'$a_1^m[0]$', r'$a_1^m[1]$')
-        ax0.set_aspect('equal')
-        ax0.legend(facecolor=PANEL_BG, labelcolor=TXT, fontsize=6,
-                   loc='upper right', ncol=2, markerscale=1.4)
-
-        # (col 1) Histograma de los componentes a₁ᵐ[k] por seed + prior ν∞
-        ax1 = fig.add_subplot(gs[row_idx, 1])
-        all_vals = np.concatenate([r['a1'].ravel() for r in results])
-        p_lo = min(np.percentile(all_vals, 0.5), -0.5)
-        p_hi = max(np.percentile(all_vals, 99.5),  0.5)
-        bins = np.linspace(p_lo, p_hi, 35)
-        for i, r in enumerate(results):
-            vals = r['a1'].ravel()
-            ax1.hist(vals, bins=bins, density=True, alpha=0.35,
-                     color=SEED_COLORS[i % len(SEED_COLORS)], edgecolor='none')
-        # Prior ν∞
-        a_range = np.linspace(p_lo, p_hi, 400)
-        log_pr  = -0.05 * a_range**4 - 0.5 * a_range**2
-        log_pr -= log_pr.max()
-        prior   = np.exp(log_pr) / np.trapz(np.exp(log_pr), a_range)
-        ax1.plot(a_range, prior, 'w--', lw=2.2, label=r'$\nu^\infty$')
-        # Histograma agregado (contorno blanco)
-        ax1.hist(all_vals, bins=bins, density=True, histtype='step',
-                 color='white', lw=1.6, alpha=0.7, label='Todas las seeds')
-        ax1.set_xlim(p_lo, p_hi)
-        style_ax(ax1,
-                 subtitle + r'\nHist. $a_1^m[k]$ por semilla vs $\nu^\infty$',
-                 r'$a_1^m[k]$', 'Densidad')
-        ax1.legend(facecolor=PANEL_BG, labelcolor=TXT, fontsize=7)
-
-        # (col 2) Importancias ‖a₀ᵐ‖ ordenadas por seed
-        ax2 = fig.add_subplot(gs[row_idx, 2])
+    def _panel(ax, results, subtitle):
+        """Dibuja importancias ‖a₀ᵐ‖ ordenadas por seed."""
         for i, r in enumerate(results):
             imp = np.sort(importance(r['a0']))[::-1]
-            ax2.plot(np.arange(1, len(imp) + 1), imp,
-                     color=SEED_COLORS[i % len(SEED_COLORS)],
-                     lw=1.2, alpha=0.70)
-        # Media ± std de importancias
+            ax.plot(np.arange(1, len(imp) + 1), imp,
+                    color=SEED_COLORS[i % len(SEED_COLORS)],
+                    lw=1.2, alpha=0.70)
         all_imp = np.array([np.sort(importance(r['a0']))[::-1] for r in results])
-        ax2.plot(np.arange(1, all_imp.shape[1] + 1), all_imp.mean(axis=0),
-                 color='white', lw=2.2, label='Media')
-        ax2.fill_between(np.arange(1, all_imp.shape[1] + 1),
-                         all_imp.mean(axis=0) - all_imp.std(axis=0),
-                         all_imp.mean(axis=0) + all_imp.std(axis=0),
-                         color='white', alpha=0.15)
-        style_ax(ax2,
+        ax.plot(np.arange(1, all_imp.shape[1] + 1), all_imp.mean(axis=0),
+                color='white', lw=2.2, label='Media')
+        ax.fill_between(np.arange(1, all_imp.shape[1] + 1),
+                        all_imp.mean(axis=0) - all_imp.std(axis=0),
+                        all_imp.mean(axis=0) + all_imp.std(axis=0),
+                        color='white', alpha=0.15)
+        style_ax(ax,
                  subtitle + '\n' r'Importancia $\|a_0^m\|_2$ ordenada por semilla',
                  'Rank (neurona)', r'$\|a_0^m\|_2$')
-        ax2.legend(facecolor=PANEL_BG, labelcolor=TXT, fontsize=7)
+        ax.legend(facecolor=PANEL_BG, labelcolor=TXT, fontsize=7)
 
-    _row(0, results_E2_1, 'E2-1 — init variable, datos fijos (seed=42)')
-    _row(1, results_E2_2, 'E2-2 — datos variables, init fija (seed=4)')
+    _panel(axes[0], results_E2_1, 'E2-1 — init variable, datos fijos (seed=42)')
+    _panel(axes[1], results_E2_2, 'E2-2 — datos variables, init fija (seed=4)')
 
     fig.suptitle(
-        r'Experimento E2 — Robustez de $\nu^*$ entre entrenamientos (make\_moons, $\varepsilon=0.01$)'
+        r'Experimento E2 — Robustez de $\nu^*$: importancia neuronal $\|a_0^m\|_2$'
         '\n'
-        r'Fila 0: 10 inits distintas (datos fijos)  |  Fila 1: 10 datasets distintos (init fija)',
+        r'Banda blanca = media ± std sobre 10 semillas  |  $\varepsilon=0.01$',
         color=TXT, fontsize=11
     )
-    plt.tight_layout(rect=[0, 0, 1, 0.93])
+    plt.tight_layout(rect=[0, 0, 1, 0.90])
     out = os.path.join(OUTPUT_DIR, 'E2_parameter_robustness.png')
     plt.savefig(out, dpi=150, bbox_inches='tight', facecolor=DARK_BG)
     plt.close()
