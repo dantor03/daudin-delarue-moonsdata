@@ -25,4 +25,13 @@ env/
 # Claude Code
 .claude/
 
+# LaTeX auxiliares (generados)
+*.aux
+*.log
+*.out
+*.toc
+*.synctex.gz
+docs/*.pdf
 
+# Figuras generadas
+figuras/
