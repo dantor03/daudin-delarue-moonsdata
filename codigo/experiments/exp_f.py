@@ -58,10 +58,10 @@ def experiment_F(n_seeds: int = 10, n_epochs: int = 700):
             • Pregunta: ¿la distribución de a₁ cambia con la inicialización?
 
     OPTIMIZADOR:
-        Ambos sub-experimentos usan SGLD (use_sgld=True): SGD + cosine annealing
-        + ruido de Langevin √(2·η·ε)·ξ.  Esto implementa la dinámica de Gibbs
-        ν_t* ∝ exp(−J(θ)/ε) y permite visualizar la distribución estacionaria de
-        los parámetros, no solo un estimador puntual.
+        Ambos sub-experimentos usan SGLD (use_sgld=True): Adam + cosine annealing
+        + ruido de Langevin √(2·η_t·ε)·ξ.  Adam como base garantiza convergencia
+        al mínimo; el ruido permite visualizar la distribución estacionaria de
+        los parámetros ν_t* ∝ exp(−J(θ)/ε), no solo un estimador puntual.
 
     FIGURAS GENERADAS (F_circles_parameter_distribution.png):
         Panel único: curvas de pérdida J de F1 (rojo) y F2 (azul) superpuestas.

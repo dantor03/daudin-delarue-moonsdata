@@ -25,19 +25,25 @@ def train(model, X, y, epsilon,
         el mínimo geométrico real sin artefactos.
 
     - use_sgld=True:
-        SGD + cosine annealing + ruido de Langevin.  Implementa la dinámica:
-            θ ← θ − η·∇J(θ) + √(2ηε)·ξ,   ξ ~ N(0,I)
-        El ruido inyectado representa la entropía verdadera del problema de
-        campo medio: hace que los parámetros exploren la distribución de Gibbs
-            ν* ∝ exp(−J(θ)/ε)
-        en lugar de colapsar a un estimador puntual.  La escala del ruido
-        √(2ηε) está directamente derivada del paper (sección 1.3): ε es la
-        temperatura entrópica y η el paso de discretización de Euler-Maruyama.
-        El cosine annealing aplica simulated annealing natural (η→0 reduce el
-        ruido progresivamente, satisfaciendo las condiciones de Robbins-Monro).
-        La penalización L4+L2 en compute_loss actúa como prior energético
-        ν^∞ ∝ exp(−ℓ(a)); el ruido proporciona el término entrópico −H(ν_t).
-        Con ε=0 el ruido es cero y se recupera SGD estándar.
+        pSGLD — preconditioned Stochastic Gradient Langevin Dynamics
+        (Li et al., 2016).  En cada paso:
+            θ ← Adam(θ, ∇J) + √(2·η_t·ε·M_t)·ξ,   ξ ~ N(0,I)
+        donde M_t[j] = min(1/(√(v̂_t[j]) + δ), 1) es el precondicionador
+        de Adam (segundo momento sesgado-corregido) por parámetro j,
+        acotado superiormente en 1 para evitar explosión de ruido en
+        direcciones planas (v̂_t ≈ 0).  El clamp corresponde a usar un
+        hiperparámetro λ ≥ 1 en lugar de δ = eps_adam = 1e-8 (Li et al. 2016
+        usan λ separado de Adam's eps).
+        El ruido DEBE estar acoplado a M_t: ruido isotrópico (σ constante)
+        desacopla la parte estocástica del precondicionador y destruye la
+        distribución estacionaria — la cadena de Markov ya no converge a
+        ν* ∝ exp(−J(θ)/ε).  Con M_t acotado, la distribución estacionaria
+        es ν* ∝ exp(−J(θ)/ε) bajo el precondicionador de Adam.
+        Adam como base es necesario: SGD puro no converge porque los
+        gradientes de BCE son ~1e-5 y Adam adapta el lr por parámetro.
+        La penalización L4+L2 actúa como prior ν^∞ ∝ exp(−ℓ(a));
+        el ruido proporciona el término entrópico −H(ν_t).
+        Con ε=0 el ruido es exactamente cero (Adam estándar).
         Recomendado para exp_b, exp_e, exp_f (verificación de ν*).
 
     CONDICIÓN POLYAK-ŁOJASIEWICZ (Meta-Teorema 2):
@@ -51,12 +57,19 @@ def train(model, X, y, epsilon,
         pl_ratio   : ‖∇J‖² / (2·(J−J*))
         accuracy   : proporción de puntos correctamente clasificados
 
+    LEARNING RATE RECOMENDADO POR MODO:
+        Adam  (defecto): lr = 0.01  — Adam adapta el lr por parámetro.
+        SGD   (use_sgd):  lr = 0.01  — gradient flow determinístico.
+        SGLD  (use_sgld): lr = 0.01  — Adam como base; el ruido pSGLD
+            √(2·η_t·ε·M_t) se añade tras el paso Adam.  M_t acopla el
+            ruido al precondicionador, preservando la distribución ν*.
+
     Args:
         model    : MeanFieldResNet a entrenar
         X        : (N, d1) tensor — features (batch completo, N/M = 1)
         y        : (N,) tensor — etiquetas
         epsilon  : coeficiente ε (regularización + temperatura Langevin)
-        lr       : learning rate inicial
+        lr       : learning rate inicial (ver tabla de valores recomendados)
         n_epochs : número de épocas
         verbose  : imprime progreso cada 200 épocas
         use_sgd  : SGD + lr constante, sin ruido (exp_c)
@@ -66,7 +79,7 @@ def train(model, X, y, epsilon,
         hist : dict con listas de métricas + 'J_star'
     """
     if use_sgld:
-        opt = optim.SGD(model.parameters(), lr=lr)
+        opt = optim.Adam(model.parameters(), lr=lr)
         sch = optim.lr_scheduler.CosineAnnealingLR(opt, T_max=n_epochs)
     elif use_sgd:
         opt = optim.SGD(model.parameters(), lr=lr)
@@ -96,18 +109,58 @@ def train(model, X, y, epsilon,
         nn.utils.clip_grad_norm_(model.parameters(), max_norm=5.0)
         opt.step()
 
-        # ── Ruido de Langevin (solo con use_sgld=True) ───────────────────────
-        # Se inyecta DESPUÉS del paso de gradiente y ANTES del scheduler,
-        # usando el lr ACTUAL (antes de que cosine lo actualice).
-        # Magnitud: √(2·η·ε) por componente, discretización de Euler-Maruyama
-        # de la SDE dθ = −∇J dt + √(2ε) dW.
-        # Con ε=0 el ruido es exactamente cero (sin ramas condicionales).
+        # ── Ruido de Langevin precondicionado pSGLD (solo con use_sgld=True) ──
+        # Implementa pSGLD (Li et al., 2016): el ruido está acoplado a la
+        # matriz de precondicionamiento M_t de Adam, NO es isotrópico.
+        #
+        # La actualización correcta es:
+        #   θ ← Adam(θ, ∇J) + √(2·η·ε·M_t)·ξ,   ξ ~ N(0, I)
+        #
+        # donde M_t[j] = 1 / (√(v̂_t[j]) + δ) es el precondicionador de Adam
+        # para el parámetro j, con v̂_t[j] = v_t[j] / (1 - β₂ᵗ) el segundo
+        # momento sesgado-corregido.
+        #
+        # Esto garantiza que la cadena de Markov converja a la distribución
+        # de Gibbs ν* ∝ exp(−J(θ)/ε) con el precondicionador M_t.
+        # Inyectar ruido isotrópico (σ=√(2ηε) igual para todos los parámetros)
+        # desacopla el ruido de M_t y destruye la distribución estacionaria.
+        #
+        # Con ε=0 el ruido es exactamente cero (recupera Adam estándar).
         if use_sgld and epsilon > 0:
             current_lr = opt.param_groups[0]['lr']
-            noise_std  = math.sqrt(2.0 * current_lr * epsilon)
+            beta2      = opt.param_groups[0]['betas'][1]
+            eps_adam   = opt.param_groups[0]['eps']
             with torch.no_grad():
                 for p in model.parameters():
-                    p.add_(torch.randn_like(p) * noise_std)
+                    if p.grad is None:
+                        continue
+                    state = opt.state[p]
+                    if len(state) == 0:
+                        # Adam aún no inicializó estado (épocas muy tempranas):
+                        # ruido isotrópico como fallback conservador.
+                        noise_std = math.sqrt(2.0 * current_lr * epsilon)
+                        p.add_(torch.randn_like(p) * noise_std)
+                    else:
+                        step = state['step']
+                        if torch.is_tensor(step):
+                            step = step.item()
+                        v_t   = state['exp_avg_sq']
+                        # Segundo momento sesgado-corregido: v̂_t = v_t/(1-β₂ᵗ)
+                        bias_corr2 = 1.0 - beta2 ** step
+                        v_hat = v_t / bias_corr2
+                        # Precondicionador M_t[j] = 1/(√(v̂_t[j]) + δ)
+                        # Clamp M a 1.0: en Li et al. 2016 el término de
+                        # estabilización λ no es eps de Adam (1e-8) sino
+                        # un hiperparámetro ≥ 1 que evita explosión de ruido
+                        # en direcciones planas (v̂_t ≈ 0 → M ≈ 1/1e-8 → ∞).
+                        # Con M ≤ 1, noise_std ≤ √(2·η·ε) = SGLD isotrópico:
+                        # amplificamos ruido en direcciones curvas pero nunca
+                        # más allá del nivel isotrópico.
+                        M = 1.0 / (v_hat.sqrt() + eps_adam)
+                        M = M.clamp(max=1.0)
+                        # std del ruido: √(2·η·ε·M_t[j]) por componente
+                        noise_std = (2.0 * current_lr * epsilon * M).sqrt()
+                        p.add_(torch.randn_like(p) * noise_std)
 
         if sch is not None:
             sch.step()

@@ -37,9 +37,10 @@ def experiment_E_robustness(n_seeds: int = 10, n_epochs: int = 500):
             Pregunta: ¿varía ν* con el dataset de entrenamiento?
 
     OPTIMIZADOR:
-        Ambos sub-experimentos usan SGLD (use_sgld=True): SGD + cosine annealing
-        + ruido de Langevin.  El ruido permite explorar la distribución de Gibbs
-        ν_t* ∝ exp(−J(θ)/ε) en lugar de colapsar a un estimador puntual.
+        Ambos sub-experimentos usan SGLD (use_sgld=True): Adam + cosine annealing
+        + ruido de Langevin √(2·η_t·ε)·ξ.  Adam como base garantiza convergencia
+        al mínimo; el ruido permite explorar la distribución de Gibbs
+        ν_t* ∝ exp(−J(θ)/ε) alrededor de él.
 
     FIGURA E (E_parameter_robustness.png):
         Layout 1×2 (dos paneles en columnas):

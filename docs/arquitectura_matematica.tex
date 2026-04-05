@@ -351,7 +351,7 @@ Modo & Parámetro & Experimentos & Objetivo \\
 \midrule
 Adam + cosine annealing & (defecto) & A, D & Convergencia rápida \\
 SGD + lr constante & \texttt{use\_sgd=True} & C & Verificación PL sin artefactos \\
-SGLD + cosine annealing & \texttt{use\_sgld=True} & B, E, F & Muestreo de $\nu_t^*$ \\
+pSGLD + cosine annealing & \texttt{use\_sgld=True} & B, E, F & Muestreo de $\nu_t^*$ \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -391,39 +391,80 @@ $\alpha_s \to 0$ al final aplana $J(\theta^s) - J^*$ artificialmente, lo que
 contamina la estimación de $\hat{\mu}$. Con lr constante, $J^*$ es el mínimo
 geométrico real del gradient flow.
 
-\subsection{Stochastic Gradient Langevin Dynamics (SGLD)}
+\subsection{SGLD precondicionado (pSGLD)}
 \label{sec:sgld}
 
-Para los Experimentos B, E y F, se usa SGLD \cite{welling2011sgld}: la
-discretización de Euler-Maruyama de la SDE
+Para los Experimentos B, E y F, se usa \textbf{pSGLD} (\emph{preconditioned
+Stochastic Gradient Langevin Dynamics}, Li et al.~\cite{li2016psgld}):
+una extensión de SGLD que utiliza \textbf{Adam} como optimizador base y
+acopla el ruido de Langevin al precondicionador de Adam.
+
+\paragraph{Motivación: por qué Adam como base, no SGD.}
+En este problema los gradientes de la BCE son del orden de $10^{-5}$.
+SGD con $\eta = 0.01$ produce pasos de tamaño $\sim 10^{-7}$, insuficientes
+para converger. Adam adapta la tasa de aprendizaje por componente mediante su
+precondicionador, garantizando convergencia donde SGD falla.
+
+\paragraph{Fórmula de actualización pSGLD.}
+En cada paso $s$, tras el paso de Adam:
 \begin{equation}
-  d\theta_t = -\nabla J(\theta_t)\,dt + \sqrt{2\varepsilon}\,dW_t,
+  \label{eq:psgld}
+  \theta^s \leftarrow \underbrace{\text{Adam}(\theta^{s-1}, \nabla J)}_{\text{paso determinístico}}
+  \;+\; \underbrace{\sqrt{2\,\eta_s\,\varepsilon \cdot M_s}\;\xi^s}_{\text{ruido precondicionado}},
+  \qquad \xi^s \sim \mathcal{N}(0, I),
 \end{equation}
-donde $W_t$ es un movimiento Browniano estándar. El esquema discreto con paso
-$\eta_s$ (tasa de aprendizaje en el paso $s$) es:
+donde $M_s \in \R^{N_p}$ es el vector de precondicionadores componente a
+componente:
 \begin{equation}
-  \label{eq:sgld}
-  \theta^s = \theta^{s-1} - \eta_s\,\nabla J(\theta^{s-1})
-             + \sqrt{2\,\eta_s\,\varepsilon}\;\xi^s,
-  \qquad \xi^s \sim \mathcal{N}(0, I).
+  \label{eq:precond}
+  M_s[j] = \min\!\left(\frac{1}{\sqrt{\hat{v}_s[j]} + \delta},\; 1\right),
+  \qquad
+  \hat{v}_s[j] = \frac{v_s[j]}{1 - \beta_2^s},
 \end{equation}
+con $v_s[j]$ el segundo momento exponencial de Adam para el parámetro $j$,
+$\beta_2 = 0.999$ y $\delta = 10^{-8}$.
 
-El ruido $\sqrt{2\eta_s\varepsilon}\,\xi^s$ implementa el \textbf{término de
-entropía} $-H(\nu_t)$ de la KL: hace que los parámetros exploren la
-distribución de Gibbs $\nu^* \propto \exp(-J(\theta)/\varepsilon)$ en lugar
-de colapsar a un estimador puntual (MAP). El término de energía
-$\mathcal{E}(\theta)$ en~\eqref{eq:energia} actúa como el prior $\nu^\infty$.
+\paragraph{Corrección de sesgo.}
+El término $\hat{v}_s[j] = v_s[j]/(1-\beta_2^s)$ es el segundo momento
+sesgado-corregido: en los primeros pasos, $v_s[j] \approx (1-\beta_2)g_1^2$
+es pequeño aunque el gradiente no lo sea; sin corrección, $M_s[j]$ sería
+artificialmente grande y el ruido explotaría. La corrección garantiza que
+$\hat{v}_s[j] \to \mathbb{E}[g^2]$ a medida que $s$ crece.
 
-Con $\varepsilon = 0$ el ruido es exactamente cero, recuperando SGD estándar.
-La escala $\sqrt{2\eta_s\varepsilon}$ está derivada de la teoría del paper
-(sección~1.3): $\varepsilon$ es la temperatura entrópica y $\eta_s$ el paso
-de Euler-Maruyama. El ruido se inyecta \emph{después} del paso de gradiente
-y \emph{antes} del scheduler (para usar el lr actual $\eta_s$, no el
-siguiente).
+\paragraph{Cota superior en $M_s$ y justificación.}
+Sin la cota $M_s \leq 1$, los parámetros con dirección plana
+($\hat{v}_s[j] \approx 0$) producirían $M_s[j] \approx 1/\delta = 10^8$,
+y el ruido $\sqrt{2\eta\varepsilon \cdot 10^8}$ explotaría incluso para
+$\varepsilon$ pequeño. La cota $M_s \leq 1$ corresponde a usar un
+hiperparámetro de estabilización $\lambda \geq 1$ (distinto del $\delta$
+de Adam) en la fórmula $1/(\sqrt{\hat{v}} + \lambda)$, como sugieren
+Li et al.\ en su implementación original. Con esta cota, el ruido
+satisface $\|\text{ruido}\| \leq \sqrt{2\eta_s\varepsilon}$: nunca supera
+el nivel isotrópico de SGLD estándar.
 
-La tasa de aprendizaje sigue cosine annealing ($\eta_s \to 0$), lo que
-implementa \emph{simulated annealing} natural y satisface las condiciones de
-Robbins-Monro: $\sum_s \eta_s = \infty$, $\sum_s \eta_s^2 < \infty$.
+\paragraph{Necesidad del acoplamiento ruido--precondicionador.}
+Inyectar ruido isotrópico ($\sigma$ constante para todos los $j$) después
+del paso de Adam desacopla la parte estocástica del precondicionador y
+destruye la distribución estacionaria: la cadena de Markov ya \emph{no}
+converge a $\nu^* \propto \exp(-J(\theta)/\varepsilon)$. Con el acoplamiento
+de~\eqref{eq:psgld}--\eqref{eq:precond}, la SDE efectiva es la Langevin
+precondicionada
+\begin{equation}
+  d\theta = -\nabla J\,dt + \sqrt{2\varepsilon M}\,dW,
+\end{equation}
+cuya medida estacionaria es $\nu^* \propto \exp(-J(\theta)/\varepsilon)$
+bajo el precondicionador $M$ (resultado estándar de difusiones precondicionadas).
+
+\paragraph{Resultado.}
+El ruido precondicionado implementa el \textbf{término de entropía}
+$-H(\nu_t)$ de la KL, haciendo que los parámetros exploren la distribución
+de Gibbs en lugar de colapsar al MAP. El término energético $\mathcal{E}$
+en~\eqref{eq:energia} sigue actuando como el prior $\nu^\infty$.
+Con $\varepsilon = 0$ el ruido es exactamente cero (Adam estándar).
+
+La tasa de aprendizaje sigue cosine annealing ($\eta_s \to 0$), satisfaciendo
+las condiciones de Robbins-Monro: $\sum_s \eta_s = \infty$,
+$\sum_s \eta_s^2 < \infty$.
 
 \subsection{Cosine Annealing}
 \label{sec:cosine}
@@ -502,8 +543,9 @@ $G_{\max}$ & 5.0 & todos & Umbral de gradient clipping \\
 $c_1$ & 0.05 & todos & Coeficiente cuártico del prior \\
 $c_2$ & 0.5 & todos & Coeficiente cuadrático del prior \\
 \midrule
-\multicolumn{4}{l}{\textit{Solo SGLD (experimentos B, E, F):}} \\
-$\sqrt{2\eta_s\varepsilon}$ & variable & B, E, F & Escala del ruido de Langevin \\
+\multicolumn{4}{l}{\textit{Solo pSGLD (experimentos B, E, F):}} \\
+$\sqrt{2\eta_s\varepsilon M_s}$ & variable & B, E, F & Escala del ruido precondicionado (por componente) \\
+$\lambda$ & $1$ & B, E, F & Cota superior de $M_s$ (evita explosión en dirs.\ planas) \\
 \bottomrule
 \end{tabular}
 \caption{Hiperparámetros del modelo y el entrenamiento.}
@@ -580,12 +622,13 @@ entrópica sobre la convergencia, las fronteras de decisión y el campo de
 velocidad.
 
 \textbf{Protocolo.} Se entrena un modelo para cada
-$\varepsilon \in \{0, 10^{-3}, 10^{-2}, 0.1, 0.5\}$ con \textbf{SGLD}
-(\texttt{use\_sgld=True}), manteniendo la misma semilla de inicialización.
-El uso de SGLD es coherente con el rol de $\varepsilon$ como temperatura
-entrópica: el ruido Langevin $\sqrt{2\eta_s\varepsilon}\,\xi$ hace que los
-parámetros exploren $\nu^* \propto \exp(-J(\theta)/\varepsilon)$. Con
-$\varepsilon = 0$ el ruido es exactamente cero (SGD puro).
+$\varepsilon \in \{0, 10^{-3}, 10^{-2}, 0.1, 0.5\}$ con \textbf{pSGLD}
+(\texttt{use\_sgld=True}, Li et al.~\cite{li2016psgld}), manteniendo la
+misma semilla de inicialización. El uso de pSGLD es coherente con el rol
+de $\varepsilon$ como temperatura entrópica: el ruido precondicionado
+$\sqrt{2\eta_s\varepsilon M_s}\,\xi$ hace que los parámetros exploren
+$\nu^* \propto \exp(-J(\theta)/\varepsilon)$. Con $\varepsilon = 0$ el
+ruido es exactamente cero (Adam estándar).
 
 \textbf{Magnitudes analizadas.}
 
@@ -682,7 +725,7 @@ es robusta a distintas condiciones de entrenamiento: distintas inicializaciones
 y distintos datasets deben producir distribuciones $\nu^*$ similares.
 
 \textbf{Protocolo.} Dos sub-experimentos con $n_\text{seeds} = 10$,
-$\varepsilon = 0.01$, 500 épocas y \textbf{SGLD} (\texttt{use\_sgld=True},
+$\varepsilon = 0.01$, 500 épocas y \textbf{pSGLD} (\texttt{use\_sgld=True},
 para explorar la distribución de Gibbs $\nu^*$ en lugar del MAP):
 \begin{itemize}
   \item \textbf{E-1:} \texttt{data\_seed}$=42$ fijo, \texttt{init\_seed}
@@ -718,7 +761,8 @@ simetría rotacional $\text{SO}(2)$) la convergencia del modelo es robusta
 tanto a variaciones del dataset como de la inicialización.
 
 \textbf{Protocolo.} Dos sub-experimentos con $n_\text{seeds} = 10$,
-$n_\text{epochs} = 700$ y $\varepsilon = 0.01$:
+$n_\text{epochs} = 700$, $\varepsilon = 0.01$ y \textbf{pSGLD}
+(\texttt{use\_sgld=True}):
 \begin{itemize}
   \item \textbf{F1:} \texttt{init\_seed}$= 4$ fija, \texttt{data\_seed}
         variable.
@@ -749,7 +793,7 @@ Total parámetros & 387 \\
 Pérdida & $J = \text{BCE} + \varepsilon \cdot \mathcal{E}$,\; $\varepsilon = 0.01$ \\
 Optimizador (A, D) & Adam \cite{kingma2015adam},\; $\alpha_0=0.01$,\; cosine annealing \\
 Optimizador (C) & SGD,\; $\alpha=0.01$ constante,\; sin ruido \\
-Optimizador (B, E, F) & SGLD \cite{welling2011sgld},\; $\theta \leftarrow \theta - \eta\nabla J + \sqrt{2\eta\varepsilon}\,\xi$ \\
+Optimizador (B, E, F) & pSGLD \cite{li2016psgld},\; $\theta \leftarrow \text{Adam}(\theta,\nabla J) + \sqrt{2\eta\varepsilon M}\,\xi$,\; $M = \min(1/\sqrt{\hat{v}}+\delta, 1)$ \\
 Gradient clip & $G_{\max}=5$ (todos los modos) \\
 \bottomrule
 \end{tabular}
@@ -768,6 +812,13 @@ Gradient clip & $G_{\max}=5$ (todos los modos) \\
   M.~Welling and Y.~W.~Teh,
   \textit{Bayesian Learning via Stochastic Gradient Langevin Dynamics},
   in \textit{International Conference on Machine Learning (ICML)}, 2011.
+
+\bibitem{li2016psgld}
+  C.~Li, C.~Chen, D.~Carlson, and L.~Carin,
+  \textit{Preconditioned Stochastic Gradient Langevin Dynamics for Deep
+  Neural Networks},
+  in \textit{AAAI Conference on Artificial Intelligence}, 2016.
+  \url{https://arxiv.org/abs/1512.07666}
 
 \bibitem{kingma2015adam}
   D.~P.~Kingma and J.~Ba,

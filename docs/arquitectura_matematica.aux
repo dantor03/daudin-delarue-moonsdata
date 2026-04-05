@@ -48,51 +48,60 @@
 \newlabel{eq:energia}{{27}{5}{Limitación de la implementación}{equation.27}{}}
 \@writefile{toc}{\contentsline {paragraph}{Estructura de $a^m$ para la penalización.}{5}{section*.9}\protected@file@percent }
 \citation{kingma2015adam}
-\citation{welling2011sgld}
+\citation{li2016psgld}
 \@writefile{toc}{\contentsline {section}{\numberline {4}Entrenamiento}{6}{section.4}\protected@file@percent }
 \newlabel{sec:entrenamiento}{{4}{6}{Entrenamiento}{section.4}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {4.1}Optimizador Adam}{6}{subsection.4.1}\protected@file@percent }
 \newlabel{sec:adam}{{4.1}{6}{Optimizador Adam}{subsection.4.1}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {4.2}SGD con tasa de aprendizaje constante}{6}{subsection.4.2}\protected@file@percent }
 \newlabel{sec:sgd}{{4.2}{6}{SGD con tasa de aprendizaje constante}{subsection.4.2}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.3}Stochastic Gradient Langevin Dynamics (SGLD)}{6}{subsection.4.3}\protected@file@percent }
-\newlabel{sec:sgld}{{4.3}{6}{Stochastic Gradient Langevin Dynamics (SGLD)}{subsection.4.3}{}}
-\newlabel{eq:sgld}{{37}{6}{Stochastic Gradient Langevin Dynamics (SGLD)}{equation.37}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.3}SGLD precondicionado (pSGLD)}{6}{subsection.4.3}\protected@file@percent }
+\newlabel{sec:sgld}{{4.3}{6}{SGLD precondicionado (pSGLD)}{subsection.4.3}{}}
+\@writefile{toc}{\contentsline {paragraph}{Motivación: por qué Adam como base, no SGD.}{6}{section*.10}\protected@file@percent }
 \citation{loshchilov2017sgdr}
-\citation{daudin2025}
+\@writefile{toc}{\contentsline {paragraph}{Fórmula de actualización pSGLD.}{7}{section*.11}\protected@file@percent }
+\newlabel{eq:psgld}{{36}{7}{Fórmula de actualización pSGLD}{equation.36}{}}
+\newlabel{eq:precond}{{37}{7}{Fórmula de actualización pSGLD}{equation.37}{}}
+\@writefile{toc}{\contentsline {paragraph}{Corrección de sesgo.}{7}{section*.12}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Cota superior en $M_s$ y justificación.}{7}{section*.13}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Necesidad del acoplamiento ruido--precondicionador.}{7}{section*.14}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Resultado.}{7}{section*.15}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {4.4}Cosine Annealing}{7}{subsection.4.4}\protected@file@percent }
 \newlabel{sec:cosine}{{4.4}{7}{Cosine Annealing}{subsection.4.4}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.5}Gradient Clipping}{7}{subsection.4.5}\protected@file@percent }
-\newlabel{sec:clipping}{{4.5}{7}{Gradient Clipping}{subsection.4.5}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.6}Retropropagación}{7}{subsection.4.6}\protected@file@percent }
-\newlabel{sec:backprop}{{4.6}{7}{Retropropagación}{subsection.4.6}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.7}Hiperparámetros de entrenamiento}{7}{subsection.4.7}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {5}Fundamentos teóricos}{7}{section.5}\protected@file@percent }
-\newlabel{sec:teoria}{{5}{7}{Fundamentos teóricos}{section.5}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.1}Condición Polyak-Łojasiewicz (PL)}{7}{subsection.5.1}\protected@file@percent }
-\newlabel{sec:pl}{{5.1}{7}{Condición Polyak-Łojasiewicz (PL)}{subsection.5.1}{}}
+\citation{daudin2025}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.5}Gradient Clipping}{8}{subsection.4.5}\protected@file@percent }
+\newlabel{sec:clipping}{{4.5}{8}{Gradient Clipping}{subsection.4.5}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.6}Retropropagación}{8}{subsection.4.6}\protected@file@percent }
+\newlabel{sec:backprop}{{4.6}{8}{Retropropagación}{subsection.4.6}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.7}Hiperparámetros de entrenamiento}{8}{subsection.4.7}\protected@file@percent }
 \@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces Hiperparámetros del modelo y el entrenamiento.}}{8}{table.1}\protected@file@percent }
-\newlabel{eq:pl}{{40}{8}{Condición Polyak-Łojasiewicz (PL)}{equation.40}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.2}Genericidad del minimizador}{8}{subsection.5.2}\protected@file@percent }
-\newlabel{sec:genericidad}{{5.2}{8}{Genericidad del minimizador}{subsection.5.2}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {6}Descripción matemática de los experimentos}{8}{section.6}\protected@file@percent }
-\newlabel{sec:experimentos}{{6}{8}{Descripción matemática de los experimentos}{section.6}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.1}Experimento A: Evolución de $\gamma _t$}{8}{subsection.6.1}\protected@file@percent }
+\citation{li2016psgld}
+\@writefile{toc}{\contentsline {section}{\numberline {5}Fundamentos teóricos}{9}{section.5}\protected@file@percent }
+\newlabel{sec:teoria}{{5}{9}{Fundamentos teóricos}{section.5}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.1}Condición Polyak-Łojasiewicz (PL)}{9}{subsection.5.1}\protected@file@percent }
+\newlabel{sec:pl}{{5.1}{9}{Condición Polyak-Łojasiewicz (PL)}{subsection.5.1}{}}
+\newlabel{eq:pl}{{41}{9}{Condición Polyak-Łojasiewicz (PL)}{equation.41}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.2}Genericidad del minimizador}{9}{subsection.5.2}\protected@file@percent }
+\newlabel{sec:genericidad}{{5.2}{9}{Genericidad del minimizador}{subsection.5.2}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {6}Descripción matemática de los experimentos}{9}{section.6}\protected@file@percent }
+\newlabel{sec:experimentos}{{6}{9}{Descripción matemática de los experimentos}{section.6}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.1}Experimento A: Evolución de $\gamma _t$}{9}{subsection.6.1}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {6.2}Experimento B: Efecto del parámetro $\varepsilon $}{9}{subsection.6.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.3}Experimento C: Verificación de la condición PL}{9}{subsection.6.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.3}Experimento C: Verificación de la condición PL}{10}{subsection.6.3}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {6.4}Experimento D: Genericidad del minimizador}{10}{subsection.6.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.5}Experimento E: Robustez de $\nu ^*$ (make\_moons)}{10}{subsection.6.5}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.6}Experimento F: Simetría de $\nu ^*$ en \texttt  {make\_circles}}{10}{subsection.6.6}\protected@file@percent }
 \citation{kingma2015adam}
-\citation{welling2011sgld}
+\citation{li2016psgld}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.5}Experimento E: Robustez de $\nu ^*$ (make\_moons)}{11}{subsection.6.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.6}Experimento F: Simetría de $\nu ^*$ en \texttt  {make\_circles}}{11}{subsection.6.6}\protected@file@percent }
 \bibcite{daudin2025}{1}
 \bibcite{welling2011sgld}{2}
-\bibcite{kingma2015adam}{3}
-\bibcite{loshchilov2017sgdr}{4}
-\bibcite{chen2018node}{5}
-\bibcite{polyak1963}{6}
-\bibcite{lojasiewicz1963}{7}
-\bibcite{villani2009}{8}
-\@writefile{toc}{\contentsline {section}{\numberline {7}Resumen de la arquitectura}{11}{section.7}\protected@file@percent }
-\newlabel{sec:resumen}{{7}{11}{Resumen de la arquitectura}{section.7}{}}
-\gdef \@abspage@last{11}
+\bibcite{li2016psgld}{3}
+\bibcite{kingma2015adam}{4}
+\bibcite{loshchilov2017sgdr}{5}
+\bibcite{chen2018node}{6}
+\bibcite{polyak1963}{7}
+\bibcite{lojasiewicz1963}{8}
+\bibcite{villani2009}{9}
+\@writefile{toc}{\contentsline {section}{\numberline {7}Resumen de la arquitectura}{12}{section.7}\protected@file@percent }
+\newlabel{sec:resumen}{{7}{12}{Resumen de la arquitectura}{section.7}{}}
+\gdef \@abspage@last{12}

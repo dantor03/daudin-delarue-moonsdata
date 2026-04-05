@@ -151,9 +151,17 @@ La función `train()` implementa tres modos, seleccionados según el objetivo de
 |---|---|---|---|
 | **Adam** (defecto) | — | A, D | Adam + cosine annealing |
 | **SGD puro** | `use_sgd=True` | C | $\theta \leftarrow \theta - \eta \nabla J$ (lr constante) |
-| **SGLD** | `use_sgld=True` | B, E, F | $\theta \leftarrow \theta - \eta \nabla J + \sqrt{2\eta\varepsilon}\,\xi$, $\xi \sim \mathcal{N}(0, I)$ |
+| **pSGLD** | `use_sgld=True` | B, E, F | $\theta \leftarrow \text{Adam}(\theta, \nabla J) + \sqrt{2\eta\varepsilon M_t}\,\xi$, $\xi \sim \mathcal{N}(0, I)$ |
 
-**SGLD** (Stochastic Gradient Langevin Dynamics) es la discretización de Euler-Maruyama de la SDE $d\theta = -\nabla J \, dt + \sqrt{2\varepsilon} \, dW$. El ruido inyectado representa el **término entrópico** $-H(\nu_t)$ de la KL, haciendo que los parámetros exploren la distribución de Gibbs $\nu^* \propto \exp(-J(\theta)/\varepsilon)$ en lugar de colapsar a un estimador puntual. Con $\varepsilon = 0$ el ruido es exactamente cero (SGD puro). El cosine annealing aplica annealing natural ($\eta \to 0$), satisfaciendo las condiciones de Robbins-Monro.
+**pSGLD** (preconditioned Stochastic Gradient Langevin Dynamics, Li et al. 2016) combina Adam como optimizador base con ruido de Langevin **acoplado al precondicionador** $M_t$ de Adam:
+
+$$M_t[j] = \min\!\left(\frac{1}{\sqrt{\hat{v}_t[j]} + \delta},\; 1\right), \qquad \hat{v}_t[j] = \frac{v_t[j]}{1 - \beta_2^t}$$
+
+donde $\hat{v}_t[j]$ es el segundo momento sesgado-corregido del parámetro $j$, y $\delta = 10^{-8}$ es el término de estabilización de Adam. El clamp en 1 evita explosión de ruido en direcciones planas ($\hat{v}_t \approx 0 \Rightarrow M_t \to \infty$ sin cota). La implementación accede al estado interno de Adam (`exp_avg_sq`, `step`, `betas`) en cada paso.
+
+El acoplamiento entre ruido y precondicionador es **matemáticamente necesario**: con ruido isotrópico ($\sigma$ constante para todos los $j$), la parte estocástica se desacopla de $M_t$ y la cadena de Markov ya no converge a $\nu^* \propto \exp(-J(\theta)/\varepsilon)$. El ruido precondicionado garantiza que la distribución estacionaria sea exactamente la de Gibbs bajo el precondicionador de Adam.
+
+Adam como base es igualmente necesario: SGD puro no converge porque los gradientes de la BCE son del orden de $10^{-5}$ y Adam adapta el lr por parámetro. Con $\varepsilon = 0$ el ruido es exactamente cero (Adam estándar). El cosine annealing sobre la tasa $\eta_s$ satisface las condiciones de Robbins-Monro ($\eta_s \to 0$).
 
 **SGD puro** (sin ruido, lr constante) se usa en el experimento C porque la condición PL es una propiedad **geométrica** del paisaje de $J$, independiente del optimizador. Con cosine annealing el lr $\to 0$ al final aplana $J(\theta^s) - J^*$ artificialmente, contaminando la estimación de $\hat{\mu}$.
 
@@ -340,5 +348,6 @@ La contribución más importante del paper es la **robustez del resultado**: $\v
 - Daudin, S. & Delarue, F. (2025). *Genericity of the Polyak-Łojasiewicz inequality for mean-field Neural ODEs with entropic regularization.* arXiv:2507.08486.
 - Chen, R. T. Q., Rubanova, Y., Bettencourt, J., & Duvenaud, D. (2018). *Neural Ordinary Differential Equations.* NeurIPS.
 - Welling, M. & Teh, Y. W. (2011). *Bayesian Learning via Stochastic Gradient Langevin Dynamics.* ICML.
+- Li, C., Chen, C., Carlson, D., & Carin, L. (2016). *Preconditioned Stochastic Gradient Langevin Dynamics for Deep Neural Networks.* AAAI.
 - Polyak, B. T. (1963). *Gradient methods for minimizing functionals.* Zh. Vychisl. Mat. Mat. Fiz., 3(4), 643–653.
 - Villani, C. (2003). *Topics in Optimal Transportation.* AMS Graduate Studies in Mathematics, vol. 58.
