@@ -131,11 +131,15 @@ class MeanFieldVelocity(nn.Module):
                 E_{ν_t}[ℓ(a)] ≈ (1/N_params) Σⱼ [c₁ θⱼ⁴ + c₂ θⱼ²]
 
             Esta aproximación es equivalente a regularización L4+L2 (weight
-            decay polinomial) y es el sustituto práctico estándar para la KL
-            cuando se usan estimadores puntuales en lugar de distribuciones.
-            Para la verdadera regularización entrópica sería necesario usar
-            dinámicas de Langevin (ruido en el gradiente) o inferencia
-            variacional (distribuir probabilísticamente cada peso).
+            decay polinomial).  Proporciona el PRIOR ENERGÉTICO ν^∞ ∝ exp(−ℓ(a))
+            del término de energía de la KL, pero no el término de entropía −H(ν_t).
+
+            La verdadera regularización entrópica (KL completa) requiere explorar
+            la distribución de Gibbs ν_t* ∝ exp(−J(θ)/ε).  Esto se implementa en
+            los experimentos B, E y F mediante SGLD (ver train.py, use_sgld=True):
+                θ ← θ − η·∇J(θ) + √(2·η·ε)·ξ,   ξ ~ N(0, I)
+            El ruido de Langevin proporciona el término entrópico −H(ν_t) de la KL,
+            mientras que este término de energía actúa como el prior ν^∞.
 
         Elección de hiperparámetros (Assumption Regularity (i)):
             c₁ = 0.05 — término cuártico (supercoercividad: garantiza log-Sobolev)
@@ -212,6 +216,17 @@ class MeanFieldResNet(nn.Module):
         n_p = sum(p.numel() for p in self.parameters())
         print(f"  MeanFieldResNet: d1={d1}, M={M}, T={T}, "
               f"n_steps={n_steps}, params={n_p:,}")
+
+    # NOTA — Restricción del espacio de controles respecto al paper:
+    #   El paper optimiza sobre trayectorias arbitrarias a^m : [0,T] → A,
+    #   es decir, el control ν_t puede ser cualquier curva continua en el
+    #   espacio de medidas.  Esta implementación restringe ese espacio a:
+    #       • a₀ᵐ ∈ ℝ²  constante en t  (pesos de salida fijos)
+    #       • a₁ᵐ ∈ ℝ²  constante en t  (pesos de entrada fijos)
+    #       • a₂ᵐ(t) = W₁[m,2]·t + b₁[m]  lineal en t  (solo la bias varía)
+    #   Esta familia paramétrica es un subconjunto estricto del control de
+    #   campo medio continuo.  Las garantías teóricas del paper valen en el
+    #   espacio completo; aquí se verifican empíricamente en este subespacio.
 
     # ── Integrador RK4 ───────────────────────────────────────────────────────
     def _rk4(self, t_norm: float, x: torch.Tensor, dt: float) -> torch.Tensor:

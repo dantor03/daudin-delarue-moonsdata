@@ -26,7 +26,7 @@ from .train import train, mu_pl_estimate              # noqa: F401
 from .plots import plot_decision_boundary             # noqa: F401
 from .experiments import (                            # noqa: F401
     experiment_A, experiment_B, experiment_C,
-    experiment_D, experiment_E, experiment_E2, experiment_F,
+    experiment_D, experiment_E_robustness, experiment_F,
 )
 from .main import main
 

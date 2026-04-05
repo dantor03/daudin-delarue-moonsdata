@@ -15,7 +15,7 @@ import argparse
 from .config import DEVICE, OUTPUT_DIR
 from .experiments import (
     experiment_A, experiment_B, experiment_C,
-    experiment_D, experiment_E, experiment_E2, experiment_F,
+    experiment_D, experiment_E_robustness, experiment_F,
 )
 
 
@@ -39,41 +39,28 @@ def main(experiment: str = 'all', epochs: int | None = None) -> None:
     if run_all or experiment == 'A':
         experiment_A(n_epochs=epochs or 800)
 
-    # B — Efecto de ε (devuelve results_eps para C y E)
+    # B — Efecto de ε
     results_eps = None
-    if run_all or experiment in ('B', 'C', 'E'):
+    if run_all or experiment == 'B':
         results_eps = experiment_B(
             epsilons=[0.0, 0.001, 0.01, 0.1, 0.5],
             n_epochs=epochs or 700,
         )
 
-    # C — Verificación de la condición PL (requiere results_eps de B)
+    # C — Verificación de la condición PL (autocontenido, entrena con SGD)
     if run_all or experiment == 'C':
-        if results_eps is None:
-            print("  [C] Entrenando modelos de B para obtener results_eps...")
-            results_eps = experiment_B(
-                epsilons=[0.0, 0.001, 0.01, 0.1, 0.5],
-                n_epochs=epochs or 700,
-            )
-        experiment_C(results_eps)
+        experiment_C(
+            epsilons=[0.0, 0.001, 0.01, 0.1, 0.5],
+            n_epochs=epochs or 700,
+        )
 
     # D — Genericidad
     if run_all or experiment == 'D':
         experiment_D(n_seeds=10, n_epochs=epochs or 500)
 
-    # E — Análisis de ν* (requiere results_eps de B)
+    # E (robustez) — Robustez de ν*
     if run_all or experiment == 'E':
-        if results_eps is None:
-            print("  [E] Entrenando modelos de B para obtener results_eps...")
-            results_eps = experiment_B(
-                epsilons=[0.0, 0.001, 0.01, 0.1, 0.5],
-                n_epochs=epochs or 700,
-            )
-        experiment_E(results_eps)
-
-    # E2 — Robustez de ν*
-    if run_all or experiment == 'E2':
-        experiment_E2(n_seeds=10, n_epochs=epochs or 500)
+        experiment_E_robustness(n_seeds=10, n_epochs=epochs or 500)
 
     # F — ν* en make_circles
     if run_all or experiment == 'F':
@@ -87,12 +74,9 @@ def main(experiment: str = 'all', epochs: int | None = None) -> None:
         'A_feature_evolution.png',
         'B1_convergence_curves.png',
         'B2_decision_boundaries.png',
-        'B3_gibbs_parameter_dist.png',
-        'B4_velocity_field.png',
         'C_pl_verification.png',
         'D_genericity.png',
-        'E_parameter_analysis.png',
-        'E2_parameter_robustness.png',
+        'E_parameter_robustness.png',
         'F_circles_parameter_distribution.png',
     ]:
         print(f"    {OUTPUT_DIR}/{fname}")
@@ -105,7 +89,7 @@ def _parse_args():
     )
     parser.add_argument(
         '--experiment', '-e',
-        choices=['all', 'A', 'B', 'C', 'D', 'E', 'E2', 'F'],
+        choices=['all', 'A', 'B', 'C', 'D', 'E', 'F'],
         default='all',
         help='Experimento a ejecutar (por defecto: all)',
     )

@@ -10,45 +10,70 @@ import torch.optim as optim
 # § 4  BUCLE DE ENTRENAMIENTO
 # =============================================================================
 def train(model, X, y, epsilon,
-          lr: float = 0.01, n_epochs: int = 800, verbose: bool = True):
+          lr: float = 0.01, n_epochs: int = 800, verbose: bool = True,
+          use_sgd: bool = False, use_sgld: bool = False):
     """
-    Bucle de entrenamiento con Adam + cosine annealing.
+    Bucle de entrenamiento.  Tres modos de optimizador:
 
-    Registra métricas por época para la verificación empírica de la condición PL.
+    - Por defecto (use_sgd=False, use_sgld=False):
+        Adam + cosine annealing.  Convergencia rápida; el lr→0 al final
+        puede aplanar artificialmente las curvas (artefacto del scheduler).
+
+    - use_sgd=True:
+        SGD puro + lr constante, SIN ruido.  Gradient flow determinístico
+        limpio.  Recomendado para exp_c (verificación PL) donde J* debe ser
+        el mínimo geométrico real sin artefactos.
+
+    - use_sgld=True:
+        SGD + cosine annealing + ruido de Langevin.  Implementa la dinámica:
+            θ ← θ − η·∇J(θ) + √(2ηε)·ξ,   ξ ~ N(0,I)
+        El ruido inyectado representa la entropía verdadera del problema de
+        campo medio: hace que los parámetros exploren la distribución de Gibbs
+            ν* ∝ exp(−J(θ)/ε)
+        en lugar de colapsar a un estimador puntual.  La escala del ruido
+        √(2ηε) está directamente derivada del paper (sección 1.3): ε es la
+        temperatura entrópica y η el paso de discretización de Euler-Maruyama.
+        El cosine annealing aplica simulated annealing natural (η→0 reduce el
+        ruido progresivamente, satisfaciendo las condiciones de Robbins-Monro).
+        La penalización L4+L2 en compute_loss actúa como prior energético
+        ν^∞ ∝ exp(−ℓ(a)); el ruido proporciona el término entrópico −H(ν_t).
+        Con ε=0 el ruido es cero y se recupera SGD estándar.
+        Recomendado para exp_b, exp_e, exp_f (verificación de ν*).
 
     CONDICIÓN POLYAK-ŁOJASIEWICZ (Meta-Teorema 2):
         ‖∇J(θ)‖² ≥ 2μ · (J(θ) − J*)
-    donde J* es el valor mínimo alcanzado y μ > 0 es la "constante PL".
-    Si esta desigualdad se cumple durante el entrenamiento, gradient descent
-    converge exponencialmente: J(θ_t) − J* ≤ (J₀ − J*) · e^{−2μt}.
-
-    SCHEDULER (cosine annealing): reduce lr de lr_max a ~0 siguiendo un coseno.
-    Útil para escapar de mesetas y converger a mínimos más bajos.  La reducción
-    del lr al final del entrenamiento puede aplanar las curvas de convergencia,
-    lo que NO invalida la condición PL (que se evalúa con el lr original).
 
     Métricas registradas por época:
-        loss       : J(θ) = BCE + ε·penalización — pérdida total
-        loss_term  : componente BCE pura (sin regularización)
-        loss_reg   : penalización ℓ(θ)/N_params (sin el factor ε)
-        grad_norm2 : ‖∇J‖² = Σⱼ (∂J/∂θⱼ)² — numerador de la condición PL
-        pl_ratio   : ‖∇J‖² / (2·(J−J*)) — debe ser ≥ μ > 0 si PL se cumple
+        loss       : J(θ) = BCE + ε·prior energético (evaluado SIN ruido)
+        loss_term  : BCE pura
+        loss_reg   : prior energético ℓ(θ)/N_params
+        grad_norm2 : ‖∇J‖² antes de clipping — numerador de PL
+        pl_ratio   : ‖∇J‖² / (2·(J−J*))
         accuracy   : proporción de puntos correctamente clasificados
 
     Args:
         model    : MeanFieldResNet a entrenar
-        X        : (N, d1) tensor — features de entrenamiento
+        X        : (N, d1) tensor — features (batch completo, N/M = 1)
         y        : (N,) tensor — etiquetas
-        epsilon  : coeficiente de regularización ε
-        lr       : learning rate inicial de Adam
+        epsilon  : coeficiente ε (regularización + temperatura Langevin)
+        lr       : learning rate inicial
         n_epochs : número de épocas
-        verbose  : si True, imprime progreso cada 200 épocas
+        verbose  : imprime progreso cada 200 épocas
+        use_sgd  : SGD + lr constante, sin ruido (exp_c)
+        use_sgld : SGD + cosine annealing + ruido Langevin (exp_b, E, F)
 
     Returns:
-        hist : dict con listas de métricas + 'J_star' (mínimo global observado)
+        hist : dict con listas de métricas + 'J_star'
     """
-    opt = optim.Adam(model.parameters(), lr=lr)
-    sch = optim.lr_scheduler.CosineAnnealingLR(opt, T_max=n_epochs)
+    if use_sgld:
+        opt = optim.SGD(model.parameters(), lr=lr)
+        sch = optim.lr_scheduler.CosineAnnealingLR(opt, T_max=n_epochs)
+    elif use_sgd:
+        opt = optim.SGD(model.parameters(), lr=lr)
+        sch = None
+    else:
+        opt = optim.Adam(model.parameters(), lr=lr)
+        sch = optim.lr_scheduler.CosineAnnealingLR(opt, T_max=n_epochs)
 
     hist = {'loss': [], 'loss_term': [], 'loss_reg': [],
             'grad_norm2': [], 'pl_ratio': [], 'accuracy': []}
@@ -70,7 +95,22 @@ def train(model, X, y, epsilon,
         # (puede ocurrir en los primeros epochs cuando los params están lejos de J*)
         nn.utils.clip_grad_norm_(model.parameters(), max_norm=5.0)
         opt.step()
-        sch.step()
+
+        # ── Ruido de Langevin (solo con use_sgld=True) ───────────────────────
+        # Se inyecta DESPUÉS del paso de gradiente y ANTES del scheduler,
+        # usando el lr ACTUAL (antes de que cosine lo actualice).
+        # Magnitud: √(2·η·ε) por componente, discretización de Euler-Maruyama
+        # de la SDE dθ = −∇J dt + √(2ε) dW.
+        # Con ε=0 el ruido es exactamente cero (sin ramas condicionales).
+        if use_sgld and epsilon > 0:
+            current_lr = opt.param_groups[0]['lr']
+            noise_std  = math.sqrt(2.0 * current_lr * epsilon)
+            with torch.no_grad():
+                for p in model.parameters():
+                    p.add_(torch.randn_like(p) * noise_std)
+
+        if sch is not None:
+            sch.step()
 
         lv = loss.item()
         if lv < L_min:

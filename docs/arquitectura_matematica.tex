@@ -1,0 +1,811 @@
+\documentclass[11pt, a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[spanish]{babel}
+\usepackage{amsmath, amssymb, amsthm}
+\usepackage{geometry}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{xcolor}
+
+\geometry{margin=2.5cm}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue!60!black,
+  citecolor=blue!60!black,
+  urlcolor=blue!60!black,
+}
+
+\theoremstyle{definition}
+\newtheorem{definition}{Definición}[section]
+\newtheorem{remark}{Observación}[section]
+\newtheorem{theorem}{Teorema}[section]
+
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\Prob}{\mathbb{P}}
+\newcommand{\norm}[1]{\left\|#1\right\|}
+\newcommand{\abs}[1]{\left|#1\right|}
+\newcommand{\inner}[2]{\langle #1,\, #2 \rangle}
+\newcommand{\eps}{\varepsilon}
+
+\title{\textbf{Arquitectura matemática del código}\\[0.5em]
+\large Aplicación del control óptimo de campo medio a clasificación binaria\\
+\normalsize Basado en Daudin \& Delarue, \textit{arXiv:2507.08486}}
+\author{}
+\date{\today}
+
+% ============================================================
+\begin{document}
+\maketitle
+\tableofcontents
+\newpage
+
+% ============================================================
+\section{Datos: generación y preprocesado}
+\label{sec:datos}
+
+\subsection{Generación del conjunto \texttt{make\_moons}}
+
+Se generan $N = 400$ pares $(x_i, y_i)$ con la función \texttt{make\_moons} de
+\texttt{scikit-learn}. Cada punto pertenece a una de dos clases entrelazadas:
+$y_i \in \{0, 1\}$, con 200 puntos por clase.
+
+A las coordenadas limpias se les añade ruido gaussiano independiente en cada
+dimensión:
+\begin{equation}
+  x_i \;\leftarrow\; x_i + \eta_i, \qquad
+  \eta_i \sim \mathcal{N}(0,\, \sigma^2 I_2), \quad \sigma = 0.12.
+\end{equation}
+
+\subsection{Normalización (\texttt{StandardScaler})}
+
+Tras añadir el ruido, se aplica normalización estándar componente a componente.
+Sea $\mu_k$ y $s_k$ la media y desviación típica de la componente $k$ sobre los
+$N$ puntos. La transformación es:
+\begin{equation}
+  \tilde{x}_i^{(k)} = \frac{x_i^{(k)} - \mu_k}{s_k}, \qquad k = 1, 2.
+\end{equation}
+Tras la normalización, cada coordenada tiene media $0$ y varianza $1$. Esto
+estabiliza el entrenamiento al colocar los datos en una escala homogénea.
+
+En adelante se denota $x_0^{(i)} \in \R^2$ al punto normalizado $i$-ésimo y
+$\gamma_0 = \frac{1}{N}\sum_{i=1}^N \delta_{(x_0^{(i)}, y_i)}$ a la medida
+empírica de los datos de entrenamiento.
+
+% ============================================================
+\section{Arquitectura del modelo}
+\label{sec:arquitectura}
+
+El modelo es una \emph{Mean-Field ResNet} compuesta de dos bloques:
+\begin{enumerate}
+  \item Un \textbf{campo vectorial de campo medio} (\texttt{MeanFieldVelocity})
+        que define la dinámica de una ODE,
+  \item un \textbf{clasificador lineal} que opera sobre el estado final de la ODE.
+\end{enumerate}
+
+\subsection{Campo vectorial prototípico}
+\label{sec:velocity}
+
+Siguiendo el Ejemplo~1.1 del paper \cite{daudin2025}, se utiliza el campo
+vectorial prototípico
+\begin{equation}
+  b(x, a) = \sigma(a_1 \cdot x + a_2)\, a_0,
+  \qquad
+  \sigma = \tanh,
+\end{equation}
+donde el \emph{parámetro de control} de cada neurona $m$ es
+\begin{equation}
+  a^m = (a_0^m,\, a_1^m,\, a_2^m,\, b_1^m)
+  \;\in\; \R^2 \times \R^2 \times \R \times \R \;=\; \R^6.
+\end{equation}
+Los roles de cada componente son:
+\begin{itemize}
+  \item $a_1^m \in \R^2$: \emph{pesos de entrada}; definen la dirección del
+        espacio de features que la neurona $m$ ``proyecta''. La
+        pre-activación es $a_1^m \cdot x \in \R$.
+  \item $a_2^m \in \R$ (columna temporal de $W_1$): coeficiente que escala la
+        contribución explícita del tiempo $t \in [0,T]$ a la pre-activación.
+  \item $b_1^m \in \R$: sesgo fijo de la neurona $m$ en $t=0$.
+  \item $a_0^m \in \R^2$: \emph{pesos de salida}; escalan la contribución de la
+        neurona al campo vectorial en $\R^2$. Su norma $\norm{a_0^m}_2$ mide la
+        \emph{importancia} de la neurona.
+\end{itemize}
+
+\subsection{Campo efectivo de campo medio}
+\label{sec:campo_efectivo}
+
+En la aproximación de $M$ partículas (neuronas), la medida de control
+$\nu_t \approx \frac{1}{M}\sum_{m=1}^M \delta_{a^m}$ produce el campo
+efectivo:
+\begin{equation}
+  \label{eq:campo}
+  F(x, t) = \frac{1}{M}\sum_{m=1}^{M} b(x, a^m(t))
+  = \frac{1}{M}\sum_{m=1}^{M}
+    \sigma\!\bigl(a_1^m \cdot x + a_2^m\, t + b_1^m\bigr)\, a_0^m.
+\end{equation}
+
+\paragraph{Diferencia con el paper.}
+El paper optimiza sobre trayectorias arbitrarias $(a^m(t))_{t \in [0,T]}$.
+En la implementación, los parámetros $(a_1^m, a_0^m, b_1^m)$ son
+\textbf{estáticos} (independientes de $t$), y la dependencia temporal se
+introduce \emph{explícitamente} añadiendo $t$ como entrada adicional:
+\begin{equation}
+  \text{pre-activación}^m(x,t) = a_1^m \cdot x + a_2^m \cdot t + b_1^m.
+\end{equation}
+Esto restringe la familia de controles a aquellos cuya trayectoria
+$a_2^m \mapsto a_2^m \cdot t + b_1^m$ varía \emph{linealmente} en $t$,
+pero preserva la dependencia temporal del campo $F(x,t)$.
+
+\paragraph{Implementación matricial.}
+Con $M=64$ neuronas y $d_1=2$:
+\begin{align}
+  W_1 &\in \R^{M \times (d_1+1)}, \quad
+    [W_1]_{m,:} = (a_1^m,\, a_2^m), \quad
+    b_1 \in \R^M, \\
+  W_0 &\in \R^{d_1 \times M}, \quad
+    [W_0]_{:,m} = a_0^m \quad \text{(sin bias)}.
+\end{align}
+Para $N$ puntos simultáneos $X \in \R^{N \times d_1}$:
+\begin{equation}
+  h = \tanh\!\bigl([\,X,\; t\,\mathbf{1}\,] \, W_1^\top + b_1\bigr)
+  \;\in\; \R^{N \times M},
+  \qquad
+  F(X, t) = \frac{1}{M}\, h\, W_0^\top \;\in\; \R^{N \times d_1}.
+\end{equation}
+El factor $1/M$ se absorbe en la escala de inicialización de $W_0$.
+
+\paragraph{Total de parámetros de la ODE.}
+\begin{equation}
+  \underbrace{M \cdot (d_1+1)}_{\text{pesos } W_1} +
+  \underbrace{M}_{\text{bias } b_1} +
+  \underbrace{d_1 \cdot M}_{\text{pesos } W_0}
+  = 64 \cdot 3 + 64 + 2 \cdot 64 = 384.
+\end{equation}
+
+\subsection{ODE de transporte y flujo}
+\label{sec:ode}
+
+El estado $X_t \in \R^2$ de cada punto de dato evoluciona según la ODE de
+primer orden:
+\begin{equation}
+  \label{eq:ode}
+  \frac{dX_t}{dt} = F(X_t, t), \qquad X_0 = x_0, \qquad t \in [0, T],
+  \quad T = 1.
+\end{equation}
+La solución define el \emph{flujo} $\phi_t : \R^2 \to \R^2$ con
+$X_t = \phi_t(x_0)$. La distribución de features evoluciona como la
+\emph{medida push-forward}:
+\begin{equation}
+  \gamma_t = (\phi_t)_\# \gamma_0,
+\end{equation}
+lo que es equivalente a la ecuación de continuidad (ec.~1.3 del paper):
+\begin{equation}
+  \partial_t \gamma_t + \operatorname{div}_x\!\bigl(F(x,t)\,\gamma_t\bigr) = 0.
+\end{equation}
+Esta PDE garantiza conservación de masa: los puntos no se crean ni se destruyen,
+sino que son \emph{transportados} por el campo $F$.
+
+\subsection{Integración numérica: Runge-Kutta de orden 4}
+\label{sec:rk4}
+
+La ODE~\eqref{eq:ode} se integra con $n_\text{steps} = 10$ pasos de
+Runge-Kutta 4 (RK4), con paso $\Delta t = T / n_\text{steps} = 0.1$.
+En cada paso $k$ (con $t_k = k \cdot \Delta t$):
+\begin{align}
+  k_1 &= F(X_{t_k},\; t_k), \\
+  k_2 &= F\!\left(X_{t_k} + \tfrac{\Delta t}{2}\,k_1,\;
+                  t_k + \tfrac{\Delta t}{2}\right), \\
+  k_3 &= F\!\left(X_{t_k} + \tfrac{\Delta t}{2}\,k_2,\;
+                  t_k + \tfrac{\Delta t}{2}\right), \\
+  k_4 &= F\!\left(X_{t_k} + \Delta t\,k_3,\;
+                  t_k + \Delta t\right), \\
+  X_{t_{k+1}} &= X_{t_k} + \frac{\Delta t}{6}(k_1 + 2k_2 + 2k_3 + k_4).
+\end{align}
+
+El error global de RK4 es $\mathcal{O}(\Delta t^4) = \mathcal{O}(10^{-4})$,
+cuatro órdenes de magnitud mejor que Euler ($\mathcal{O}(\Delta t) = 0.1$),
+al coste de cuatro evaluaciones de $F$ por paso.
+
+\subsection{Clasificador lineal}
+\label{sec:clasificador}
+
+Tras integrar la ODE hasta $t = T$, se obtiene el estado final
+$X_T \in \R^{N \times 2}$. El clasificador lineal calcula el logit:
+\begin{equation}
+  \ell_i = W \cdot X_T^{(i)} + b,
+  \qquad W \in \R^{1 \times 2},\; b \in \R,
+\end{equation}
+y la probabilidad predicha es:
+\begin{equation}
+  \hat{p}_i = \Prob(y_i = 1 \mid X_T^{(i)}) = \sigma(\ell_i)
+  = \frac{1}{1 + e^{-\ell_i}}.
+\end{equation}
+
+\paragraph{Parámetros del clasificador.}
+\begin{equation}
+  \underbrace{1 \times 2}_{\text{pesos } W} + \underbrace{1}_{\text{bias } b}
+  = 3 \text{ parámetros},
+\end{equation}
+lo que representa menos del $1\%$ del total de parámetros del modelo ($387$).
+
+\paragraph{Intuición.}
+La ODE aprende a \emph{transportar} la distribución $\gamma_0$ (lunas
+entrelazadas, no separables linealmente) hasta $\gamma_T$ (clases separadas).
+El clasificador lineal simplemente lee el resultado: toda la complejidad
+no lineal está en el flujo.
+
+% ============================================================
+\section{Función de pérdida}
+\label{sec:perdida}
+
+\subsection{Coste total}
+
+La función de pérdida que se minimiza es:
+\begin{equation}
+  \label{eq:loss}
+  J(\theta) = \underbrace{\mathcal{L}_{\text{BCE}}(\theta)}_{\text{coste terminal}}
+            + \varepsilon \cdot \underbrace{\mathcal{E}(\theta)}_{\text{penalización entrópica}},
+\end{equation}
+donde $\theta$ denota el conjunto completo de parámetros
+$(W_1, b_1, W_0, W, b)$ y $\varepsilon > 0$ es el coeficiente de
+regularización.
+
+\subsection{Entropía cruzada binaria (BCE)}
+\label{sec:bce}
+
+El coste terminal es la entropía cruzada binaria (Binary Cross-Entropy) con
+logits:
+\begin{equation}
+  \label{eq:bce}
+  \mathcal{L}_{\text{BCE}}(\theta)
+  = -\frac{1}{N}\sum_{i=1}^{N}
+    \Bigl[ y_i \log \sigma(\ell_i) + (1 - y_i)\log(1 - \sigma(\ell_i)) \Bigr],
+\end{equation}
+donde $\ell_i = W \cdot X_T^{(i)} + b$ y $\sigma(\ell_i) = (1 + e^{-\ell_i})^{-1}$.
+En términos del paper \cite{daudin2025}, este es el coste terminal
+$L(X_T, Y)$ del problema de control óptimo:
+\begin{equation}
+  \min_{\nu_t} \int_0^T \eps \cdot E(\nu_t \mid \nu^\infty)\,dt
+  + \E\bigl[L(X_T, Y)\bigr],
+\end{equation}
+donde $E(\nu_t \mid \nu^\infty)$ es la divergencia KL relativa al prior
+$\nu^\infty$.
+
+\subsection{Penalización entrópica}
+\label{sec:entropica}
+
+\paragraph{Motivación teórica.}
+El paper regula la medida de control $\nu_t$ mediante la divergencia KL
+respecto al prior de Gibbs:
+\begin{equation}
+  \nu^\infty \propto \exp(-\ell(a)), \qquad
+  \ell(a) = c_1 \abs{a}^4 + c_2 \abs{a}^2,
+  \quad c_1 = 0.05,\; c_2 = 0.5.
+\end{equation}
+El término cuártico $c_1 \abs{a}^4$ es esencial: satisface la condición de
+\emph{supercoercividad} ($\nabla^2 \ell(a) \geq c(1 + \abs{a}^2)I$) que
+garantiza la desigualdad log-Sobolev para $\nu^\infty$ y por tanto la
+condición Polyak-Łojasiewicz (véase Sección~\ref{sec:pl}).
+Un potencial puramente cuadrático ($c_1 = 0$) no sería suficiente.
+
+La KL completa es:
+\begin{equation}
+  \operatorname{KL}(\nu_t \Vert \nu^\infty)
+  = \underbrace{\E_{\nu_t}[\ell(a)]}_{\text{término de energía}}
+  - \underbrace{H(\nu_t)}_{\text{entropía diferencial}}.
+\end{equation}
+
+\paragraph{Limitación de la implementación.}
+En la implementación, $\nu_t = \frac{1}{M}\sum_{m=1}^M \delta_{\theta^m}$
+es una suma de deltas de Dirac sobre los parámetros puntuales. La entropía
+diferencial de una medida discreta respecto a un prior continuo es
+$-\infty$, por lo que la KL completa no es computable.
+
+Sólo es accesible el \textbf{término de energía}:
+\begin{equation}
+  \label{eq:energia}
+  \mathcal{E}(\theta)
+  = \frac{1}{N_p}\sum_{j=1}^{N_p}
+    \Bigl[c_1\, \theta_j^4 + c_2\, \theta_j^2\Bigr],
+  \quad c_1 = 0.05,\; c_2 = 0.5,
+\end{equation}
+donde la suma recorre los $N_p = 384$ parámetros de \texttt{MeanFieldVelocity}
+(se \emph{excluyen} los 3 parámetros del clasificador, que son parte del
+coste terminal, no del control). Dividir por $N_p$ hace que el valor no
+dependa del tamaño del modelo.
+
+\begin{remark}
+  En términos prácticos, $\mathcal{E}(\theta)$ es equivalente a regularización
+  $L^4 + L^2$ (\emph{weight decay} polinomial). Este término proporciona el
+  \textbf{prior energético} $\nu^\infty$, pero no el término de entropía
+  $-H(\nu_t)$ de la KL completa. Para los experimentos B, E y F, el término
+  de entropía se implementa mediante \textbf{SGLD} (ruido de Langevin en el
+  gradiente, véase Sección~\ref{sec:sgld}).
+\end{remark}
+
+\paragraph{Estructura de $a^m$ para la penalización.}
+Recordando que cada neurona $m$ tiene parámetro
+$a^m = (a_0^m, a_1^m, a_2^m, b_1^m) \in \R^6$, la norma que aparece en
+$\ell(a)$ es:
+\begin{equation}
+  \abs{a^m}^2 = \norm{a_0^m}^2 + \norm{a_1^m}^2 + (a_2^m)^2 + (b_1^m)^2.
+\end{equation}
+En la implementación, $\mathcal{E}$ se calcula recorriendo todos los
+parámetros escalares $\theta_j$ de \texttt{MeanFieldVelocity} de forma
+unificada.
+
+% ============================================================
+\section{Entrenamiento}
+\label{sec:entrenamiento}
+
+La función \texttt{train()} implementa tres modos de optimización, cada uno
+adecuado a un experimento distinto:
+
+\begin{center}
+\begin{tabular}{llll}
+\toprule
+Modo & Parámetro & Experimentos & Objetivo \\
+\midrule
+Adam + cosine annealing & (defecto) & A, D & Convergencia rápida \\
+SGD + lr constante & \texttt{use\_sgd=True} & C & Verificación PL sin artefactos \\
+SGLD + cosine annealing & \texttt{use\_sgld=True} & B, E, F & Muestreo de $\nu_t^*$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Optimizador Adam}
+\label{sec:adam}
+
+Se utiliza el optimizador Adam \cite{kingma2015adam} con tasa de aprendizaje
+$\alpha_0 = 0.01$, $\beta_1 = 0.9$, $\beta_2 = 0.999$, $\eps_{\text{Adam}} = 10^{-8}$.
+En cada paso de gradiente $s$, para cada parámetro escalar $\theta$:
+\begin{align}
+  g_s &= \nabla_\theta J(\theta^{s-1}), \\
+  m_s &= \beta_1 m_{s-1} + (1 - \beta_1)\, g_s
+        \qquad \text{(primer momento, media exponencial)}, \\
+  v_s &= \beta_2 v_{s-1} + (1 - \beta_2)\, g_s^2
+        \qquad \text{(segundo momento, varianza exponencial)}, \\
+  \hat{m}_s &= \frac{m_s}{1 - \beta_1^s}
+        \qquad \text{(corrección de sesgo)}, \\
+  \hat{v}_s &= \frac{v_s}{1 - \beta_2^s}, \\
+  \theta^s &= \theta^{s-1} - \alpha_s\, \frac{\hat{m}_s}{\sqrt{\hat{v}_s} + \eps_{\text{Adam}}}.
+\end{align}
+La corrección de sesgo es importante en los primeros pasos, cuando
+$m_s \approx (1-\beta_1)g_1$ y $v_s \approx (1-\beta_2)g_1^2$ son aún
+pequeños. Sin corrección, el paso efectivo sería demasiado grande.
+
+\subsection{SGD con tasa de aprendizaje constante}
+\label{sec:sgd}
+
+Para el Experimento~C (verificación de la condición PL), se usa SGD puro con
+tasa de aprendizaje \emph{constante} $\alpha = 0.01$ y sin ruido:
+\begin{equation}
+  \theta^s = \theta^{s-1} - \alpha\, \nabla_\theta J(\theta^{s-1}).
+\end{equation}
+La motivación es que la condición PL es una propiedad \textbf{geométrica} del
+paisaje de $J$, independiente del optimizador. Con cosine annealing,
+$\alpha_s \to 0$ al final aplana $J(\theta^s) - J^*$ artificialmente, lo que
+contamina la estimación de $\hat{\mu}$. Con lr constante, $J^*$ es el mínimo
+geométrico real del gradient flow.
+
+\subsection{Stochastic Gradient Langevin Dynamics (SGLD)}
+\label{sec:sgld}
+
+Para los Experimentos B, E y F, se usa SGLD \cite{welling2011sgld}: la
+discretización de Euler-Maruyama de la SDE
+\begin{equation}
+  d\theta_t = -\nabla J(\theta_t)\,dt + \sqrt{2\varepsilon}\,dW_t,
+\end{equation}
+donde $W_t$ es un movimiento Browniano estándar. El esquema discreto con paso
+$\eta_s$ (tasa de aprendizaje en el paso $s$) es:
+\begin{equation}
+  \label{eq:sgld}
+  \theta^s = \theta^{s-1} - \eta_s\,\nabla J(\theta^{s-1})
+             + \sqrt{2\,\eta_s\,\varepsilon}\;\xi^s,
+  \qquad \xi^s \sim \mathcal{N}(0, I).
+\end{equation}
+
+El ruido $\sqrt{2\eta_s\varepsilon}\,\xi^s$ implementa el \textbf{término de
+entropía} $-H(\nu_t)$ de la KL: hace que los parámetros exploren la
+distribución de Gibbs $\nu^* \propto \exp(-J(\theta)/\varepsilon)$ en lugar
+de colapsar a un estimador puntual (MAP). El término de energía
+$\mathcal{E}(\theta)$ en~\eqref{eq:energia} actúa como el prior $\nu^\infty$.
+
+Con $\varepsilon = 0$ el ruido es exactamente cero, recuperando SGD estándar.
+La escala $\sqrt{2\eta_s\varepsilon}$ está derivada de la teoría del paper
+(sección~1.3): $\varepsilon$ es la temperatura entrópica y $\eta_s$ el paso
+de Euler-Maruyama. El ruido se inyecta \emph{después} del paso de gradiente
+y \emph{antes} del scheduler (para usar el lr actual $\eta_s$, no el
+siguiente).
+
+La tasa de aprendizaje sigue cosine annealing ($\eta_s \to 0$), lo que
+implementa \emph{simulated annealing} natural y satisface las condiciones de
+Robbins-Monro: $\sum_s \eta_s = \infty$, $\sum_s \eta_s^2 < \infty$.
+
+\subsection{Cosine Annealing}
+\label{sec:cosine}
+
+La tasa de aprendizaje $\alpha_s$ no es constante: sigue un calendario de
+\emph{cosine annealing} \cite{loshchilov2017sgdr} con $\eta_{\min} = 0$ y
+$T_{\max} = n_\text{epochs}$:
+\begin{equation}
+  \alpha_s = \frac{\alpha_0}{2}\Bigl(1 + \cos\!\Bigl(\frac{\pi s}{T_{\max}}\Bigr)\Bigr),
+  \qquad s = 0, 1, \ldots, T_{\max}.
+\end{equation}
+La tasa arranca en $\alpha_0 = 0.01$, decrece suavemente hasta $0$ al final
+del entrenamiento. En Adam (experimentos A, D) y SGLD (B, E, F), el
+aplanamiento de las curvas de pérdida en las últimas épocas se debe al
+scheduler, no a una violación de la condición PL. Por eso el Experimento~C
+usa SGD con lr constante (Sección~\ref{sec:sgd}).
+
+\subsection{Gradient Clipping}
+\label{sec:clipping}
+
+Para evitar gradientes explosivos en las primeras épocas (cuando los
+parámetros son aún aleatorios y el campo $F$ puede ser grande), se aplica
+\emph{gradient clipping} por norma global:
+\begin{equation}
+  g \;\leftarrow\;
+  \begin{cases}
+    g & \text{si } \norm{g} \leq G_{\max}, \\
+    G_{\max}\, \dfrac{g}{\norm{g}} & \text{si } \norm{g} > G_{\max},
+  \end{cases}
+  \qquad G_{\max} = 5.
+\end{equation}
+Aquí $g = \nabla_\theta J(\theta)$ es el vector de gradientes concatenado
+sobre todos los parámetros, y la norma es la euclídea global. El clipping
+escala el vector entero (no componente a componente), preservando la
+dirección del gradiente.
+
+En Adam, el segundo momento $\hat{v}_s$ hace de divisor adaptativo, pero sin
+clipping la actualización puede ser muy grande en la primera época cuando
+$\hat{v}_s$ todavía no ha acumulado información.
+
+\subsection{Retropropagación}
+\label{sec:backprop}
+
+El gradiente $\nabla_\theta J$ se calcula automáticamente con
+\texttt{loss.backward()} de PyTorch. El grafo computacional incluye:
+\begin{enumerate}
+  \item Diferenciación a través del clasificador lineal ($\partial J / \partial W$,
+        $\partial J / \partial b$).
+  \item Diferenciación a través del RK4 (cuatro evaluaciones de $F$ por paso,
+        $n_\text{steps} = 10$ pasos): $\partial J / \partial X_T \cdot
+        \partial X_T / \partial \theta$ mediante la regla de la cadena.
+  \item Diferenciación de la penalización entrópica
+        $\partial \mathcal{E} / \partial \theta_j = 4c_1 \theta_j^3 + 2c_2 \theta_j$.
+\end{enumerate}
+PyTorch construye el grafo dinámicamente en el paso \emph{forward}, por lo que
+no es necesario implementar el adjunto del integrador manualmente.
+
+\subsection{Hiperparámetros de entrenamiento}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{llll}
+\toprule
+Hiperparámetro & Valor & Experimentos & Descripción \\
+\midrule
+$N$ & 400 & todos & Puntos de entrenamiento \\
+$d_1$ & 2 & todos & Dimensión del espacio de features \\
+$M$ & 64 & todos & Neuronas / partículas \\
+$T$ & 1.0 & todos & Horizonte temporal de la ODE \\
+$n_\text{steps}$ & 10 & todos & Pasos RK4 \\
+$\varepsilon$ & 0.01 & todos & Temperatura entrópica / regularización \\
+$\alpha_0$ & 0.01 & todos & Tasa de aprendizaje inicial \\
+$\beta_1, \beta_2$ & 0.9, 0.999 & A, D & Momentos de Adam \\
+$n_\text{epochs}$ & 800 (A), 700 (B–F) & todos & Épocas de entrenamiento \\
+$G_{\max}$ & 5.0 & todos & Umbral de gradient clipping \\
+$c_1$ & 0.05 & todos & Coeficiente cuártico del prior \\
+$c_2$ & 0.5 & todos & Coeficiente cuadrático del prior \\
+\midrule
+\multicolumn{4}{l}{\textit{Solo SGLD (experimentos B, E, F):}} \\
+$\sqrt{2\eta_s\varepsilon}$ & variable & B, E, F & Escala del ruido de Langevin \\
+\bottomrule
+\end{tabular}
+\caption{Hiperparámetros del modelo y el entrenamiento.}
+\end{table}
+
+% ============================================================
+\section{Fundamentos teóricos}
+\label{sec:teoria}
+
+\subsection{Condición Polyak-Łojasiewicz (PL)}
+\label{sec:pl}
+
+El paper \cite{daudin2025} demuestra (Meta-Teorema~2) que para $\varepsilon > 0$
+y condiciones iniciales en un conjunto abierto y denso $\mathcal{O}$, la
+función de pérdida satisface la \emph{desigualdad de Polyak-Łojasiewicz}
+(PL) local:
+\begin{equation}
+  \label{eq:pl}
+  \norm{\nabla J(\theta)}^2 \;\geq\; 2\mu \cdot (J(\theta) - J^*),
+  \qquad \mu > 0,
+\end{equation}
+donde $J^* = \inf_\theta J(\theta)$ es el valor óptimo. Esta condición
+implica convergencia \emph{exponencial} del gradient descent con tasa
+de aprendizaje $\eta$:
+\begin{equation}
+  J(\theta^s) - J^* \;\leq\; (1 - 2\eta\mu)^s \cdot (J(\theta^0) - J^*).
+\end{equation}
+
+\begin{remark}
+  La condición PL es más débil que la convexidad fuerte: no implica que el
+  espacio de parámetros sea convexo ni que el mínimo sea único en sentido
+  geométrico, pero sí garantiza que cualquier punto estacionario es global.
+  La clave es que $\varepsilon > 0$: con $\varepsilon = 0$ no hay garantía.
+\end{remark}
+
+\subsection{Genericidad del minimizador}
+\label{sec:genericidad}
+
+El Meta-Teorema~1 del paper establece que para un conjunto abierto y denso
+$\mathcal{O}$ de condiciones iniciales $\gamma_0$, el problema de control
+tiene un único minimizador \emph{estable}. Esto predice robustez empírica:
+distintas inicializaciones de parámetros y distintos datasets deberían
+producir el mismo $J^*$ (a igualdad de clase de problema).
+
+% ============================================================
+\section{Descripción matemática de los experimentos}
+\label{sec:experimentos}
+
+\subsection{Experimento A: Evolución de $\gamma_t$}
+
+\textbf{Objetivo.} Visualizar que la ODE transforma $\gamma_0$ (lunas no
+separables) en $\gamma_T$ (clases separadas).
+
+\textbf{Protocolo.} Se entrena un modelo con $\varepsilon = 0.01$, $M = 64$,
+$T = 1$, $n_\text{epochs} = 800$. Tras el entrenamiento, se integra la ODE
+guardando $X_t$ en $t \in \{0, T/4, T/2, 3T/4, T\}$. Se visualiza la
+distribución $\gamma_t$ en cada instante.
+
+\textbf{Magnitudes visualizadas.}
+\begin{itemize}
+  \item Snapshots $\gamma_t$ para $t \in \{0, 0.25, 0.5, 0.75, 1.0\}$.
+  \item Trayectorias $t \mapsto X_t^{(i)}$ para 40 partículas seleccionadas.
+  \item Curvas de convergencia: $J$, BCE, $\mathcal{E}$ vs. época.
+  \item Frontera de decisión final en $\R^2$.
+\end{itemize}
+
+\textbf{Resultado esperado.} $\gamma_T$ debe ser linealmente separable con
+accuracy $\approx 1.0$.
+
+\subsection{Experimento B: Efecto del parámetro $\varepsilon$}
+
+\textbf{Objetivo.} Estudiar el efecto del coeficiente de regularización
+entrópica sobre la convergencia, las fronteras de decisión y el campo de
+velocidad.
+
+\textbf{Protocolo.} Se entrena un modelo para cada
+$\varepsilon \in \{0, 10^{-3}, 10^{-2}, 0.1, 0.5\}$ con \textbf{SGLD}
+(\texttt{use\_sgld=True}), manteniendo la misma semilla de inicialización.
+El uso de SGLD es coherente con el rol de $\varepsilon$ como temperatura
+entrópica: el ruido Langevin $\sqrt{2\eta_s\varepsilon}\,\xi$ hace que los
+parámetros exploren $\nu^* \propto \exp(-J(\theta)/\varepsilon)$. Con
+$\varepsilon = 0$ el ruido es exactamente cero (SGD puro).
+
+\textbf{Magnitudes analizadas.}
+
+\begin{itemize}
+  \item \textbf{B1 — Curvas de convergencia:} $J$ total, accuracy y
+        $\mathcal{E}$ vs.\ época para cada $\varepsilon$.
+        Predicción: $J^*$ crece con $\varepsilon$ (la regularización penaliza
+        la solución óptima ``pura''), pero todas las $\varepsilon$ convergen a
+        accuracy $\approx 1.0$.
+  \item \textbf{B2 — Fronteras de decisión y campo de velocidad:} la fila
+        superior muestra la región de decisión $\{x : \hat{p}(x) \geq 0.5\}$
+        para cada $\varepsilon$; la fila inferior muestra el quiver plot del
+        campo $F(x, t=0.5)$ normalizado en dirección (color = magnitud).
+        Predicción: fronteras más suaves para $\varepsilon$ mayor;
+        campo más regular.
+\end{itemize}
+
+\textbf{Trade-off empírico $\varepsilon$ vs. $\hat{\mu}_{\text{PL}}$.}
+Empíricamente se observa que $\hat{\mu}_{\text{PL}}$ no crece
+monotónicamente con $\varepsilon$. Esto no contradice el paper: la teoría
+garantiza $\mu > 0$ para todo $\varepsilon > 0$, pero no que $\mu$ sea
+monótono. Con $\varepsilon$ grande, $J^*$ es mayor (más penalización) y el
+exceso de coste $(J - J^*)$ en el denominador de la ratio PL puede crecer
+más que $\norm{\nabla J}^2$, reduciendo $\hat{\mu}$.
+
+\subsection{Experimento C: Verificación de la condición PL}
+
+\textbf{Objetivo.} Verificar empíricamente la desigualdad~\eqref{eq:pl}.
+
+\textbf{Protocolo.} Experimento \textbf{autocontenido}: entrena sus propios
+modelos con \textbf{SGD + lr constante} (\texttt{use\_sgd=True},
+$\varepsilon \in \{0, 10^{-3}, 10^{-2}, 0.1, 0.5\}$, 700 épocas). No
+reutiliza modelos del Experimento~B. La motivación es que la condición PL es
+una propiedad \textbf{geométrica} del paisaje de $J$, independiente del
+optimizador: con cosine annealing, $\alpha_s \to 0$ aplana $\delta_s =
+J(\theta^s) - J^*$ artificialmente y contamina $\hat{\mu}$. Con lr constante,
+$J^*$ es el mínimo geométrico genuino del gradient flow.
+
+En cada época $s$, se registran:
+\begin{equation}
+  \text{excess cost}: \quad \delta_s = J(\theta^s) - J^*,
+  \qquad
+  \text{grad norm}: \quad G_s = \norm{\nabla J(\theta^s)}^2.
+\end{equation}
+El estimador conservador de $\mu$ se define como el percentil 10 del ratio
+\begin{equation}
+  \hat{\mu}_{\text{PL}} = \operatorname{P}_{10}\!\left\{
+    \frac{G_s}{2\,\delta_s} : s = 1, \ldots, n_\text{epochs}
+  \right\}.
+\end{equation}
+
+\textbf{Paneles generados.}
+\begin{itemize}
+  \item \textbf{C1 — Log-log:} $G_s$ vs.\ $\delta_s$. Los puntos deben quedar
+        por encima de la recta $G = 2\hat{\mu}\,\delta$.
+  \item \textbf{C2 — Semilog:} $\delta_s$ vs.\ época. Caída exponencial
+        confirma la convergencia predicha por~\eqref{eq:pl}.
+  \item \textbf{C3 — Barras:} $\hat{\mu}_{\text{PL}}$ para cada $\varepsilon$.
+        Confirma $\hat{\mu} > 0$ para todo $\varepsilon > 0$.
+  \item \textbf{C4 — Ratio PL:} $G_s / (2\delta_s)$ vs.\ época (escala log),
+        que debe mantenerse $\geq \hat{\mu}$ en todo momento.
+\end{itemize}
+
+\subsection{Experimento D: Genericidad del minimizador}
+
+\textbf{Objetivo.} Verificar empíricamente el Meta-Teorema~1: que el
+minimizador es robusto a cambios en la inicialización y en el dataset.
+
+\textbf{Protocolo.} Se ejecutan tres sub-experimentos con
+$n_\text{seeds} = 10$, 500 épocas, Adam y $\varepsilon \in \{0, 0.01\}$:
+\begin{itemize}
+  \item \textbf{D1 — $\gamma_0$ fija, inicialización variable:}
+        \texttt{data\_seed}$=42$, \texttt{init\_seed}$\in\{0,\ldots,9\}$.
+  \item \textbf{D2 — Inicialización fija, $\gamma_0$ variable:}
+        \texttt{init\_seed}$=4$, \texttt{data\_seed}$\in\{0,\ldots,9\}$.
+  \item \textbf{D3 — Ambas aleatorias:}
+        \texttt{data\_seed}$=$\texttt{init\_seed}$=s$.
+\end{itemize}
+
+\textbf{Resultado esperado.} D3 tiene la banda de pérdida más ancha (combina
+ambas fuentes de variabilidad). Con $\varepsilon = 0.01$, la condición PL
+garantiza $\hat{\mu} > 0$ para todo run, pero la regularización no reduce
+necesariamente la varianza entre seeds (el paper garantiza convergencia desde
+cualquier punto, no menor dispersión). Las fronteras de decisión de D2 y D3
+son topológicamente similares entre sí, verificando el Meta-Teorema~1.
+La columna derecha de D2/D3 superpone los contornos $P(y=1|x) = 0.5$
+solo para runs con acc $\geq 0.90$, sobre una nube de puntos de todos los
+datasets.
+
+\subsection{Experimento E: Robustez de $\nu^*$ (make\_moons)}
+
+\textbf{Objetivo.} Verificar que la distribución óptima de parámetros $\nu^*$
+es robusta a distintas condiciones de entrenamiento: distintas inicializaciones
+y distintos datasets deben producir distribuciones $\nu^*$ similares.
+
+\textbf{Protocolo.} Dos sub-experimentos con $n_\text{seeds} = 10$,
+$\varepsilon = 0.01$, 500 épocas y \textbf{SGLD} (\texttt{use\_sgld=True},
+para explorar la distribución de Gibbs $\nu^*$ en lugar del MAP):
+\begin{itemize}
+  \item \textbf{E-1:} \texttt{data\_seed}$=42$ fijo, \texttt{init\_seed}
+        $\in \{0,\ldots,9\}$ variable.
+  \item \textbf{E-2:} \texttt{init\_seed}$=4$ fijo, \texttt{data\_seed}
+        $\in \{0,\ldots,9\}$ variable.
+\end{itemize}
+
+\textbf{Magnitud visualizada.} Para cada run se extraen los pesos de salida
+$a_0^m \in \R^2$ de las $M=64$ neuronas y se calcula la \emph{importancia}:
+\begin{equation}
+  I^m = \norm{a_0^m}_2.
+\end{equation}
+Las importancias se ordenan de mayor a menor y se representan para cada seed,
+junto con la media $\pm 1\sigma$ sobre las 10 seeds (figura 1×2):
+\begin{itemize}
+  \item \textbf{Panel izquierdo (E-1):} importancias con init variable,
+        datos fijos. Banda estrecha $\Rightarrow$ $\nu^*$ es robusta a la
+        inicialización.
+  \item \textbf{Panel derecho (E-2):} importancias con datos variables,
+        init fija. Banda estrecha $\Rightarrow$ $\nu^*$ es una propiedad
+        de la geometría del problema, no del dataset concreto.
+\end{itemize}
+
+Si el Meta-Teorema~1 se cumple (minimizador único estable), las curvas de
+importancia deben ser cualitativamente similares entre seeds: mismo ``codo''
+pronunciado en los primeros ranks y misma caída.
+
+\subsection{Experimento F: Simetría de $\nu^*$ en \texttt{make\_circles}}
+
+\textbf{Objetivo.} Verificar que en \texttt{make\_circles} (dataset con
+simetría rotacional $\text{SO}(2)$) la convergencia del modelo es robusta
+tanto a variaciones del dataset como de la inicialización.
+
+\textbf{Protocolo.} Dos sub-experimentos con $n_\text{seeds} = 10$,
+$n_\text{epochs} = 700$ y $\varepsilon = 0.01$:
+\begin{itemize}
+  \item \textbf{F1:} \texttt{init\_seed}$= 4$ fija, \texttt{data\_seed}
+        variable.
+  \item \textbf{F2:} \texttt{data\_seed}$= 42$ fijo, \texttt{init\_seed}
+        variable.
+\end{itemize}
+
+\textbf{Figura.} Se muestra un único panel con las curvas de convergencia
+$J \pm 1\sigma$ para F1 y F2 superpuestas. La banda más estrecha de F1 vs.\
+F2 (o viceversa) indica cuál fuente de variabilidad domina la robustez del
+entrenamiento.
+
+% ============================================================
+\section{Resumen de la arquitectura}
+\label{sec:resumen}
+
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+Bloque & Descripción \\
+\midrule
+Datasets & make\_moons (A–E) y make\_circles (F), $N=400$, normalizados \\
+ODE & $dX_t/dt = F(X_t,t)$, $t \in [0,1]$, 10 pasos RK4 \\
+Campo $F$ & $(1/M)\sum_m \tanh(a_1^m \cdot x + a_2^m t + b_1^m)\,a_0^m$,\; $M=64$ \\
+Parámetros ODE & $W_1 \in \R^{64\times3}$, $b_1\in\R^{64}$, $W_0\in\R^{2\times64}$ (384 total)\\
+Clasificador & $\ell = W \cdot X_T + b$,\; $W \in \R^{1\times 2}$,\; $b \in \R$ (3 total) \\
+Total parámetros & 387 \\
+Pérdida & $J = \text{BCE} + \varepsilon \cdot \mathcal{E}$,\; $\varepsilon = 0.01$ \\
+Optimizador (A, D) & Adam \cite{kingma2015adam},\; $\alpha_0=0.01$,\; cosine annealing \\
+Optimizador (C) & SGD,\; $\alpha=0.01$ constante,\; sin ruido \\
+Optimizador (B, E, F) & SGLD \cite{welling2011sgld},\; $\theta \leftarrow \theta - \eta\nabla J + \sqrt{2\eta\varepsilon}\,\xi$ \\
+Gradient clip & $G_{\max}=5$ (todos los modos) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+% ============================================================
+\begin{thebibliography}{9}
+
+\bibitem{daudin2025}
+  S.~Daudin and F.~Delarue,
+  \textit{Genericity of the Polyak-{\L}ojasiewicz inequality for mean-field
+  Neural ODEs with entropic regularization},
+  arXiv:2507.08486, 2025.
+
+\bibitem{welling2011sgld}
+  M.~Welling and Y.~W.~Teh,
+  \textit{Bayesian Learning via Stochastic Gradient Langevin Dynamics},
+  in \textit{International Conference on Machine Learning (ICML)}, 2011.
+
+\bibitem{kingma2015adam}
+  D.~P.~Kingma and J.~Ba,
+  \textit{Adam: A Method for Stochastic Optimization},
+  in \textit{International Conference on Learning Representations (ICLR)},
+  2015.
+  \url{https://arxiv.org/abs/1412.6980}
+
+\bibitem{loshchilov2017sgdr}
+  I.~Loshchilov and F.~Hutter,
+  \textit{SGDR: Stochastic Gradient Descent with Warm Restarts},
+  in \textit{International Conference on Learning Representations (ICLR)},
+  2017.
+  \url{https://arxiv.org/abs/1608.03983}
+
+\bibitem{chen2018node}
+  R.~T.~Q.~Chen, Y.~Rubanova, J.~Bettencourt, and D.~Duvenaud,
+  \textit{Neural Ordinary Differential Equations},
+  in \textit{Advances in Neural Information Processing Systems (NeurIPS)},
+  2018.
+  \url{https://arxiv.org/abs/1806.07366}
+
+\bibitem{polyak1963}
+  B.~T.~Polyak,
+  \textit{Gradient methods for the minimisation of functionals},
+  \textit{USSR Computational Mathematics and Mathematical Physics},
+  3(4):864--878, 1963.
+
+\bibitem{lojasiewicz1963}
+  S.~Łojasiewicz,
+  \textit{Une propriété topologique des sous-ensembles analytiques réels},
+  in \textit{Colloques Internationaux du CNRS}, 117:87--89, 1963.
+
+\bibitem{villani2009}
+  C.~Villani,
+  \textit{Optimal Transport: Old and New},
+  Springer, 2009.
+
+\end{thebibliography}
+
+\end{document}

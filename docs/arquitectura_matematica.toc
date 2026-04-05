@@ -1,0 +1,41 @@
+\babel@toc {spanish}{}\relax 
+\contentsline {section}{\numberline {1}Datos: generación y preprocesado}{2}{section.1}%
+\contentsline {subsection}{\numberline {1.1}Generación del conjunto \texttt {make\_moons}}{2}{subsection.1.1}%
+\contentsline {subsection}{\numberline {1.2}Normalización (\texttt {StandardScaler})}{2}{subsection.1.2}%
+\contentsline {section}{\numberline {2}Arquitectura del modelo}{2}{section.2}%
+\contentsline {subsection}{\numberline {2.1}Campo vectorial prototípico}{2}{subsection.2.1}%
+\contentsline {subsection}{\numberline {2.2}Campo efectivo de campo medio}{3}{subsection.2.2}%
+\contentsline {paragraph}{Diferencia con el paper.}{3}{section*.2}%
+\contentsline {paragraph}{Implementación matricial.}{3}{section*.3}%
+\contentsline {paragraph}{Total de parámetros de la ODE.}{3}{section*.4}%
+\contentsline {subsection}{\numberline {2.3}ODE de transporte y flujo}{3}{subsection.2.3}%
+\contentsline {subsection}{\numberline {2.4}Integración numérica: Runge-Kutta de orden 4}{4}{subsection.2.4}%
+\contentsline {subsection}{\numberline {2.5}Clasificador lineal}{4}{subsection.2.5}%
+\contentsline {paragraph}{Parámetros del clasificador.}{4}{section*.5}%
+\contentsline {paragraph}{Intuición.}{4}{section*.6}%
+\contentsline {section}{\numberline {3}Función de pérdida}{4}{section.3}%
+\contentsline {subsection}{\numberline {3.1}Coste total}{4}{subsection.3.1}%
+\contentsline {subsection}{\numberline {3.2}Entropía cruzada binaria (BCE)}{5}{subsection.3.2}%
+\contentsline {subsection}{\numberline {3.3}Penalización entrópica}{5}{subsection.3.3}%
+\contentsline {paragraph}{Motivación teórica.}{5}{section*.7}%
+\contentsline {paragraph}{Limitación de la implementación.}{5}{section*.8}%
+\contentsline {paragraph}{Estructura de $a^m$ para la penalización.}{5}{section*.9}%
+\contentsline {section}{\numberline {4}Entrenamiento}{6}{section.4}%
+\contentsline {subsection}{\numberline {4.1}Optimizador Adam}{6}{subsection.4.1}%
+\contentsline {subsection}{\numberline {4.2}SGD con tasa de aprendizaje constante}{6}{subsection.4.2}%
+\contentsline {subsection}{\numberline {4.3}Stochastic Gradient Langevin Dynamics (SGLD)}{6}{subsection.4.3}%
+\contentsline {subsection}{\numberline {4.4}Cosine Annealing}{7}{subsection.4.4}%
+\contentsline {subsection}{\numberline {4.5}Gradient Clipping}{7}{subsection.4.5}%
+\contentsline {subsection}{\numberline {4.6}Retropropagación}{7}{subsection.4.6}%
+\contentsline {subsection}{\numberline {4.7}Hiperparámetros de entrenamiento}{7}{subsection.4.7}%
+\contentsline {section}{\numberline {5}Fundamentos teóricos}{7}{section.5}%
+\contentsline {subsection}{\numberline {5.1}Condición Polyak-Łojasiewicz (PL)}{7}{subsection.5.1}%
+\contentsline {subsection}{\numberline {5.2}Genericidad del minimizador}{8}{subsection.5.2}%
+\contentsline {section}{\numberline {6}Descripción matemática de los experimentos}{8}{section.6}%
+\contentsline {subsection}{\numberline {6.1}Experimento A: Evolución de $\gamma _t$}{8}{subsection.6.1}%
+\contentsline {subsection}{\numberline {6.2}Experimento B: Efecto del parámetro $\varepsilon $}{9}{subsection.6.2}%
+\contentsline {subsection}{\numberline {6.3}Experimento C: Verificación de la condición PL}{9}{subsection.6.3}%
+\contentsline {subsection}{\numberline {6.4}Experimento D: Genericidad del minimizador}{10}{subsection.6.4}%
+\contentsline {subsection}{\numberline {6.5}Experimento E: Robustez de $\nu ^*$ (make\_moons)}{10}{subsection.6.5}%
+\contentsline {subsection}{\numberline {6.6}Experimento F: Simetría de $\nu ^*$ en \texttt {make\_circles}}{10}{subsection.6.6}%
+\contentsline {section}{\numberline {7}Resumen de la arquitectura}{11}{section.7}%

@@ -2,24 +2,38 @@
 =============================================================================
 exp_c.py — Experimento C: Verificación empírica de la condición PL
 =============================================================================
+
+NOTA SOBRE EL OPTIMIZADOR:
+    Este experimento usa SGD con lr constante (sin cosine annealing).
+    Motivación: la condición PL es una propiedad GEOMÉTRICA del paisaje de J,
+    no del optimizador.  Con Adam + cosine annealing el lr → 0 al final, lo que
+    aplana J(θ^s) − J* artificialmente y contamina la estimación de J* y de μ̂.
+    Con SGD + lr constante, J* es el verdadero mínimo alcanzado por el gradient
+    flow, y el ratio ‖∇J‖²/(2(J−J*)) refleja fielmente la geometría de J.
 """
 
 import os
 import numpy as np
+import torch
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 
-from ..config import OUTPUT_DIR, DARK_BG, PANEL_BG, TXT, style_ax
-from ..train import mu_pl_estimate
+from ..config import SEED, DEVICE, OUTPUT_DIR, DARK_BG, PANEL_BG, TXT, COLORS_EPS, style_ax
+from ..data import get_moons
+from ..model import MeanFieldResNet
+from ..train import train, mu_pl_estimate
 
 
 # =============================================================================
 # EXPERIMENTO C
 #   Verificación empírica de la desigualdad Polyak-Łojasiewicz
 # =============================================================================
-def experiment_C(results_eps: dict):
+def experiment_C(epsilons=None, n_epochs: int = 700):
     """
     Verificación empírica de la desigualdad Polyak-Łojasiewicz.
+
+    Entrena con SGD + lr constante (use_sgd=True) para una medición limpia
+    de la condición PL sin artefactos del cosine annealing.
 
     META-TEOREMA 2 (paper, sec. 1.4):
         Para condiciones iniciales γ_0 en un conjunto abierto denso 𝒪 y ε > 0,
@@ -43,9 +57,8 @@ def experiment_C(results_eps: dict):
         C2 — Semilog: excess cost (J−J*) vs época
              Si PL se cumple, la curva debe ser aproximadamente LINEAL en
              escala logarítmica (decay exponencial).
-             Nota: el cosine annealing reduce el lr al final → la curva se
-             aplana en los últimos epochs (esto es efecto del scheduler, no
-             violación de PL).
+             Con SGD + lr constante no hay artefactos del scheduler; el
+             aplanamiento final refleja genuina convergencia al mínimo.
 
         C3 — Barras: μ̂_PL estimado para cada ε
              Se usa el percentil 10 del ratio PL como estimador conservador.
@@ -61,16 +74,33 @@ def experiment_C(results_eps: dict):
              J−J* también grande pero la ratio es estable).
 
     Args:
-        results_eps : dict {ε: {'model': ..., 'hist': ..., 'color': ...}}
-                      generado por experiment_B()
+        epsilons  : lista de valores de ε a comparar
+        n_epochs  : número de épocas de entrenamiento (SGD, lr constante)
     """
+    if epsilons is None:
+        epsilons = [0.0, 0.001, 0.01, 0.1, 0.5]
+
     print("\n" + "=" * 62)
-    print("EXPERIMENTO C  —  Verificación PL")
+    print("EXPERIMENTO C  —  Verificación PL  (SGD + lr constante)")
     print("=" * 62)
 
-    epsilons = list(results_eps.keys())
-    mu_list  = [mu_pl_estimate(res['hist']) for res in results_eps.values()]
-    mu_min   = min(m for m in mu_list if m > 0)
+    X, y, _, _ = get_moons()
+
+    # ── Entrenamiento con SGD + lr constante ─────────────────────────────────
+    results_eps = {}
+    for eps, col in zip(epsilons, COLORS_EPS):
+        print(f"  ε={eps} ...")
+        torch.manual_seed(SEED)
+        model = MeanFieldResNet(d1=2, M=64, T=1.0, n_steps=10).to(DEVICE)
+        hist  = train(model, X, y, epsilon=eps,
+                      n_epochs=n_epochs, verbose=False, use_sgd=True)
+        mu    = mu_pl_estimate(hist)
+        results_eps[eps] = {'model': model, 'hist': hist, 'color': col, 'mu': mu}
+        print(f"    J*={hist['J_star']:.5f} | μ̂={mu:.5f} "
+              f"| acc={hist['accuracy'][-1]:.4f}")
+
+    mu_list = [res['mu'] for res in results_eps.values()]
+    mu_min  = min(m for m in mu_list if m > 0)
 
     fig = plt.figure(figsize=(20, 14))
     fig.patch.set_facecolor(DARK_BG)
@@ -108,7 +138,7 @@ def experiment_C(results_eps: dict):
         ax_exp.semilogy(excess, color=res['color'], lw=1.5, label=f'ε={eps}')
     style_ax(ax_exp,
              'Excess cost $J(\\theta^s) - J^*$  (semilog)\n'
-             'Caída exponencial en fase inicial; aplanamiento final = cosine annealing (no viola PL)',
+             'SGD + lr cte: caída exponencial sin artefactos del scheduler',
              'Época $s$', r'$J(\theta^s) - J^*$  (log)')
     ax_exp.legend(facecolor=PANEL_BG, labelcolor=TXT, fontsize=8)
 
@@ -150,8 +180,10 @@ def experiment_C(results_eps: dict):
         r'Verificación empírica de la desigualdad Polyak-Łojasiewicz'
         '\n'
         r'$\|\nabla J(\theta)\|^2 \geq 2\mu \cdot (J(\theta) - J^*)$'
-        '   [Meta-Teorema 2, arXiv:2507.08486]',
-        color=TXT, fontsize=13, fontweight='bold'
+        '   [Meta-Teorema 2, arXiv:2507.08486]'
+        '\n'
+        r'Optimizador: SGD + lr constante  —  sin artefactos de cosine annealing',
+        color=TXT, fontsize=12, fontweight='bold'
     )
     plt.tight_layout()
     out = os.path.join(OUTPUT_DIR, 'C_pl_verification.png')
@@ -163,18 +195,21 @@ def experiment_C(results_eps: dict):
     print("\n  ┌─────────┬────────────┬────────────┬────────────┐")
     print(  "  │    ε    │ μ_PL (P10) │  J* final  │  Acc final │")
     print(  "  ├─────────┼────────────┼────────────┼────────────┤")
-    for eps, res, mu in zip(epsilons, results_eps.values(), mu_list):
+    for eps, res in results_eps.items():
         acc = res['hist']['accuracy'][-1]
-        print(f"  │ {eps:>7.3f} │ {mu:>10.5f} │ "
+        print(f"  │ {eps:>7.3f} │ {res['mu']:>10.5f} │ "
               f"{res['hist']['J_star']:>10.5f} │ {acc:>10.4f} │")
     print(  "  └─────────┴────────────┴────────────┴────────────┘")
     print("\n  Interpretación:")
+    print("  • Optimizador: SGD + lr constante.  J* = mínimo genuino del gradient")
+    print("    flow, sin artefactos de cosine annealing.")
     print("  • μ̂ > 0 para ε > 0  →  Meta-Teorema 2 verificado empíricamente.")
-    print("  • ε = 0 también muestra μ̂ > 0 en este dataset simple, pero sin")
-    print("    garantía teórica (el paper requiere ε > 0 para la demostración).")
-    print("  • μ̂ no crece necesariamente con ε: el paper garantiza μ > 0 para")
-    print("    todo ε > 0, pero no que μ sea monótono.  Empíricamente, ε grande")
-    print("    eleva J* → mayor denominador → μ̂ puede decrecer.  Lo importante")
-    print("    es que μ̂ > 0 en todos los casos con ε > 0.")
-    print("  • El resultado central del paper no es 'ε grande es mejor', sino")
-    print("    'cualquier ε > 0 garantiza convergencia exponencial'.")
+    print("  • ε = 0 puede mostrar μ̂ > 0 en datos fáciles, pero sin garantía teórica.")
+    print("  • μ̂ no es necesariamente monótono en ε: la teoría garantiza μ > 0")
+    print("    para todo ε > 0, no que μ crezca con ε.")
+    print("  • LIMITACIÓN DE IMPLEMENTACIÓN: la regularización usa solo el término")
+    print("    de energía E_{ν}[ℓ(a)] = (1/N_p)Σ(0.05θ⁴+0.5θ²), no la KL completa.")
+    print("    Es una 'penalización supercoerciva de energía', no entropía verdadera.")
+    print("  • RESTRICCIÓN TEMPORAL: a₀ᵐ y a₁ᵐ son constantes en t; solo a₂ᵐ(t)")
+    print("    varía linealmente.  El espacio de controles es un subconjunto estricto")
+    print("    del control de campo medio continuo analizado en el paper.")

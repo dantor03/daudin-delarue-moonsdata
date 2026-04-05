@@ -26,6 +26,10 @@ def experiment_A(n_epochs: int = 800):
     """
     Neural ODE con regularización entrópica + evolución de features γ_t.
 
+    OPTIMIZADOR:
+        Usa Adam + cosine annealing (modo por defecto de train()).  Al ser un
+        experimento de demostración (no de muestreo de ν*), no se necesita SGLD.
+
     OBJETIVO MATEMÁTICO:
         Mostrar empíricamente que la ODE de campo medio puede transformar una
         distribución γ_0 (make_moons, no separable linealmente) en γ_T que sí
@@ -165,7 +169,7 @@ def experiment_A(n_epochs: int = 800):
     ep   = np.arange(n_epochs)
     ax_l.plot(ep, hist['loss'],      color='#2ecc71', lw=1.5, label='$J$ total')
     ax_l.plot(ep, hist['loss_term'], color='#3498db', lw=1.3, ls='--', label='BCE')
-    ax_l.plot(ep, hist['loss_reg'],  color='#f39c12', lw=1.3, ls=':',  label='Entrópica')
+    ax_l.plot(ep, hist['loss_reg'],  color='#f39c12', lw=1.3, ls=':',  label='Prior energético')
     style_ax(ax_l, 'Curvas de pérdida', 'Época', '$J$')
     ax_l.legend(facecolor=PANEL_BG, labelcolor=TXT, fontsize=7)
 

@@ -54,15 +54,18 @@ def experiment_B(epsilons=None, n_epochs: int = 700):
           • ε pequeño → menor regularización, J* más bajo, μ̂ posiblemente mayor
           • ε = 0 → sin garantía, pero en datos fáciles funciona bien
 
+    OPTIMIZADOR:
+        Usa SGLD (use_sgld=True): SGD + cosine annealing + ruido de Langevin
+        √(2·η·ε)·ξ.  Implementa la dinámica de Gibbs ν_t* ∝ exp(−J(θ)/ε),
+        por lo que el ruido es coherente con el rol teórico de ε como temperatura.
+        Con ε=0 el ruido es exactamente cero (se recupera SGD puro).
+
     FIGURAS GENERADAS:
-        B1 — Curvas de convergencia: J total, accuracy, penalización entrópica
+        B1 — Curvas de convergencia: J total, accuracy, reg. supercoerciva de energía
              Esperado: todas las ε convergen a ~100% acc; J* crece con ε
-        B2 — Fronteras de decisión en ℝ² para cada ε
-             Esperado: fronteras más suaves/regulares para ε mayor
-        B3 — Campo de velocidad F(x, t=0.5) como quiver plot para cada ε
-             Dirección normalizada, color = magnitud.
-             Dirección normalizada, color = magnitud.  Muestra cómo el campo
-             empuja las lunas hacia la separabilidad en el tiempo medio t=T/2.
+        B2 — Figura 2×n_eps: fila superior = fronteras de decisión para cada ε,
+             fila inferior = campo de velocidad F(x, t=0.5) para cada ε.
+             Esperado: fronteras más suaves para ε mayor; campo más uniforme.
     """
     if epsilons is None:
         epsilons = [0.0, 0.001, 0.01, 0.1, 0.5]
@@ -77,10 +80,12 @@ def experiment_B(epsilons=None, n_epochs: int = 700):
     for eps, col in zip(epsilons, COLORS_EPS):
         print(f"\n  ε = {eps} ─────────────────────────────────────────")
         # Semilla fija → misma inicialización para todos los ε.
-        # Así la única diferencia entre modelos es la penalización entrópica.
+        # Así la única diferencia entre modelos es ε (temperatura Langevin
+        # y coeficiente del prior energético).
         torch.manual_seed(SEED)
         model = MeanFieldResNet(d1=2, M=64, T=1.0, n_steps=10).to(DEVICE)
-        hist  = train(model, X, y, epsilon=eps, n_epochs=n_epochs, verbose=False)
+        hist  = train(model, X, y, epsilon=eps, n_epochs=n_epochs,
+                      verbose=False, use_sgld=True)
         mu    = mu_pl_estimate(hist)
         results[eps] = {'model': model, 'hist': hist, 'color': col}
         print(f"    J*={hist['J_star']:.5f} | μ_PL={mu:.5f} "
@@ -99,7 +104,7 @@ def experiment_B(epsilons=None, n_epochs: int = 700):
     style_ax(axes[0], 'Pérdida total $J$ vs época', 'Época', '$J$')
     style_ax(axes[1], 'Accuracy vs época', 'Época', 'Acc')
     style_ax(axes[2],
-             r'Penalización entrópica $\mathcal{E}/N_{params}$', 'Época',
+             r'Reg. supercoerciva de energía $\mathcal{E}/N_{params}$', 'Época',
              r'$\mathcal{E}$')
     axes[1].set_ylim(0.45, 1.05)
     for ax in axes:
@@ -112,35 +117,25 @@ def experiment_B(epsilons=None, n_epochs: int = 700):
     plt.close()
     print(f"\n  → {out}")
 
-    # ── B2: Fronteras de decisión ────────────────────────────────────────────
-    fig, axes = plt.subplots(1, n_eps, figsize=(5 * n_eps, 5))
-    fig.patch.set_facecolor(DARK_BG)
-    for ax, (eps, res) in zip(axes, results.items()):
-        acc = res['hist']['accuracy'][-1]
-        plot_decision_boundary(ax, res['model'], X_np, y_np,
-                               f'ε={eps}   acc={acc:.3f}')
-    fig.suptitle(
-        r'Fronteras de decisión  —  Mean-Field ODE en $\mathbb{R}^2$ + clasificador lineal'
-        '\nLa ODE transforma las lunas en algo linealmente separable',
-        color=TXT, fontsize=12
-    )
-    plt.tight_layout()
-    out = os.path.join(OUTPUT_DIR, 'B2_decision_boundaries.png')
-    plt.savefig(out, dpi=150, bbox_inches='tight', facecolor=DARK_BG)
-    plt.close()
-    print(f"  → {out}")
-
-    # ── B3: Campo de velocidad F(x, t=0.5) ───────────────────────────────────
-    fig, axes = plt.subplots(1, n_eps, figsize=(5 * n_eps, 5))
-    fig.patch.set_facecolor(DARK_BG)
+    # ── B2: Fronteras de decisión + campo de velocidad (2 filas) ────────────
     xv = np.linspace(-2.5, 2.5, 16)
     Xg, Yg = np.meshgrid(xv, xv)
     grid_v  = torch.tensor(
         np.c_[Xg.ravel(), Yg.ravel()].astype(np.float32), device=DEVICE
     )
 
-    for ax, (eps, res) in zip(axes, results.items()):
-        m = res['model']
+    fig, axes = plt.subplots(2, n_eps, figsize=(5 * n_eps, 10))
+    fig.patch.set_facecolor(DARK_BG)
+
+    for col, (eps, res) in enumerate(results.items()):
+        # Fila 0: fronteras de decisión
+        acc = res['hist']['accuracy'][-1]
+        plot_decision_boundary(axes[0, col], res['model'], X_np, y_np,
+                               f'ε={eps}   acc={acc:.3f}')
+
+        # Fila 1: campo de velocidad F(x, t=0.5)
+        ax = axes[1, col]
+        m  = res['model']
         m.eval()
         with torch.no_grad():
             vel = m.velocity(0.5, grid_v).cpu().numpy()
@@ -157,14 +152,16 @@ def experiment_B(epsilons=None, n_epochs: int = 700):
                    c='#74b9ff', s=10, alpha=0.45, zorder=4)
         style_ax(ax, f'$F(x,t=0.5)$  ε={eps}', '$x_1$', '$x_2$')
         ax.set_aspect('equal')
+
     fig.suptitle(
-        r'Campo de velocidad $F(x,t)$ en $t=0.5$'
-        '\n(dirección normalizada, color = magnitud)'
-        '\nMuestra como el campo empuja las lunas hacia la separabilidad',
-        color=TXT, fontsize=11
+        r'Fronteras de decisión y campo de velocidad  —  Mean-Field ODE  (make\_moons)'
+        '\n'
+        r'Fila superior: frontera en $\mathbb{R}^2$  |  '
+        r'Fila inferior: $F(x,t=0.5)$, dirección normalizada, color = magnitud',
+        color=TXT, fontsize=12
     )
     plt.tight_layout()
-    out = os.path.join(OUTPUT_DIR, 'B3_velocity_field.png')
+    out = os.path.join(OUTPUT_DIR, 'B2_decision_boundaries.png')
     plt.savefig(out, dpi=150, bbox_inches='tight', facecolor=DARK_BG)
     plt.close()
     print(f"  → {out}")

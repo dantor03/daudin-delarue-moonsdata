@@ -82,7 +82,7 @@ def experiment_D(n_seeds: int = 10, n_epochs: int = 500):
     print("=" * 62)
 
     SEEDS = list(range(n_seeds))
-    EPS_COMPARE = [0.0, 0.5]
+    EPS_COMPARE = [0.0, 0.01]
     DATA_SEED_FIXED = 42
     INIT_SEED_FIXED = 4   # seed 4 converge bien en D1 (J*≈0.005) → D2 muestra
                           # variabilidad real de γ₀ sin estar contaminada por
@@ -216,8 +216,8 @@ def experiment_D(n_seeds: int = 10, n_epochs: int = 500):
                       '\n' r'$\gamma_0$ fija')
 
     ax01 = fig.add_subplot(gs[0, 1])
-    _plot_loss_curves(ax01, d1_results[0.5],
-                      r'D1: init aleatoria, $\varepsilon=0.5$'
+    _plot_loss_curves(ax01, d1_results[0.01],
+                      r'D1: init aleatoria, $\varepsilon=0.01$'
                       '\n' r'$\gamma_0$ fija')
 
     # D1 col 2: dos subpaneles independientes — μ̂ arriba, J* abajo.
@@ -230,9 +230,9 @@ def experiment_D(n_seeds: int = 10, n_epochs: int = 500):
     ax02b = fig.add_subplot(gs02[1])   # J*
 
     mu_e0   = [r['mu']             for r in d1_results[0.0]]
-    mu_e05 = [r['mu']             for r in d1_results[0.5]]
+    mu_e05 = [r['mu']             for r in d1_results[0.01]]
     js_e0   = [r['hist']['J_star'] for r in d1_results[0.0]]
-    js_e05 = [r['hist']['J_star'] for r in d1_results[0.5]]
+    js_e05 = [r['hist']['J_star'] for r in d1_results[0.01]]
 
     _box_kw = dict(
         patch_artist=True, widths=0.55,
@@ -248,7 +248,7 @@ def experiment_D(n_seeds: int = 10, n_epochs: int = 500):
         patch.set_facecolor(c)
         patch.set_alpha(0.75)
     ax02a.set_xticks([1, 2])
-    ax02a.set_xticklabels(['ε=0', 'ε=0.5'], color=TXT, fontsize=8)
+    ax02a.set_xticklabels(['ε=0', 'ε=0.01'], color=TXT, fontsize=8)
     ax02a.axhline(0, color=GRID_C, lw=1.0, ls='--', alpha=0.7)
     style_ax(ax02a, r'$\hat{\mu}_{PL}$ entre init seeds', '', r'$\hat{\mu}$')
 
@@ -258,7 +258,7 @@ def experiment_D(n_seeds: int = 10, n_epochs: int = 500):
         patch.set_facecolor(c)
         patch.set_alpha(0.75)
     ax02b.set_xticks([1, 2])
-    ax02b.set_xticklabels(['ε=0', 'ε=0.5'], color=TXT, fontsize=8)
+    ax02b.set_xticklabels(['ε=0', 'ε=0.01'], color=TXT, fontsize=8)
     style_ax(ax02b, r'$J^*$ entre init seeds', '', r'$J^*$')
 
     # ── Fila 1: D2 ────────────────────────────────────────────────────────────
@@ -268,36 +268,35 @@ def experiment_D(n_seeds: int = 10, n_epochs: int = 500):
                       '\n' r'init fija')
 
     ax11 = fig.add_subplot(gs[1, 1])
-    _plot_loss_curves(ax11, d2_results[0.5],
-                      r'D2: $\gamma_0$ aleatoria, $\varepsilon=0.5$'
+    _plot_loss_curves(ax11, d2_results[0.01],
+                      r'D2: $\gamma_0$ aleatoria, $\varepsilon=0.01$'
                       '\n' r'init fija')
 
-    # D2 col 2: fronteras de decisión superpuestas (6 datasets, ε=0.01)
+    # D2 col 2: fronteras de decisión superpuestas, ε=0.01, γ₀ variables.
+    # Scatter de TODOS los datasets (alpha bajo) como fondo, para que cada
+    # frontera tenga el contexto de su propio dataset.
     ax12 = fig.add_subplot(gs[1, 2])
     ax12.set_facecolor(PANEL_BG)
 
-    # Calcular rango global del espacio de datos entre todos los runs
-    xmin_g = min(r['X_np'][:, 0].min() for r in d2_results[0.5]) - 0.5
-    xmax_g = max(r['X_np'][:, 0].max() for r in d2_results[0.5]) + 0.5
-    ymin_g = min(r['X_np'][:, 1].min() for r in d2_results[0.5]) - 0.5
-    ymax_g = max(r['X_np'][:, 1].max() for r in d2_results[0.5]) + 0.5
+    xmin_g = min(r['X_np'][:, 0].min() for r in d2_results[0.01]) - 0.5
+    xmax_g = max(r['X_np'][:, 0].max() for r in d2_results[0.01]) + 0.5
+    ymin_g = min(r['X_np'][:, 1].min() for r in d2_results[0.01]) - 0.5
+    ymax_g = max(r['X_np'][:, 1].max() for r in d2_results[0.01]) + 0.5
     xx_c, yy_c = np.meshgrid(np.linspace(xmin_g, xmax_g, 150),
                               np.linspace(ymin_g, ymax_g, 150))
     grid_c = torch.tensor(
         np.c_[xx_c.ravel(), yy_c.ravel()].astype(np.float32), device=DEVICE
     )
 
-    # Datos de referencia visual (data_seed=0)
-    ref = d2_results[0.5][0]
-    ax12.scatter(ref['X_np'][ref['y_np'] == 0, 0],
-                 ref['X_np'][ref['y_np'] == 0, 1],
-                 c='#ff6b6b', s=10, alpha=0.35, zorder=2)
-    ax12.scatter(ref['X_np'][ref['y_np'] == 1, 0],
-                 ref['X_np'][ref['y_np'] == 1, 1],
-                 c='#74b9ff', s=10, alpha=0.35, zorder=2)
+    for r in d2_results[0.01]:
+        ax12.scatter(r['X_np'][r['y_np'] == 0, 0], r['X_np'][r['y_np'] == 0, 1],
+                     c='#ff6b6b', s=5, alpha=0.06, zorder=1)
+        ax12.scatter(r['X_np'][r['y_np'] == 1, 0], r['X_np'][r['y_np'] == 1, 1],
+                     c='#74b9ff', s=5, alpha=0.06, zorder=1)
 
-    # Superponer 6 fronteras de decisión (isocurva P=0.5)
-    for i, r in enumerate(d2_results[0.5][:6]):
+    for i, r in enumerate(d2_results[0.01][:6]):
+        if r['hist']['accuracy'][-1] < 0.90:
+            continue
         m = r['model']
         m.eval()
         with torch.no_grad():
@@ -307,7 +306,7 @@ def experiment_D(n_seeds: int = 10, n_epochs: int = 500):
                      alpha=0.90, zorder=5)
 
     style_ax(ax12,
-             r'D2: fronteras de decisión, $\varepsilon=0.5$'
+             r'D2: fronteras de decisión, $\varepsilon=0.01$'
              '\n' r'6 datasets distintos ($\gamma_0$ variables)',
              '$x_1$', '$x_2$')
     ax12.set_aspect('equal')
@@ -321,35 +320,35 @@ def experiment_D(n_seeds: int = 10, n_epochs: int = 500):
                       '\n' r'data\_seed = init\_seed = $s$')
 
     ax21 = fig.add_subplot(gs[2, 1])
-    _plot_loss_curves(ax21, d3_results[0.5],
-                      r'D3: ambas aleatorias, $\varepsilon=0.5$'
+    _plot_loss_curves(ax21, d3_results[0.01],
+                      r'D3: ambas aleatorias, $\varepsilon=0.01$'
                       '\n' r'data\_seed = init\_seed = $s$')
 
-    # D3 col 2: fronteras de decisión superpuestas (6 pares distintos, ε=0.01)
+    # D3 col 2: fronteras de decisión, ε=0.01, ambas semillas variables.
+    # Scatter de TODOS los datasets (alpha muy bajo) para que cada frontera
+    # tenga contexto. Cada modelo se evalúa en la cuadrícula común.
     ax22 = fig.add_subplot(gs[2, 2])
     ax22.set_facecolor(PANEL_BG)
 
-    xmin_d3 = min(r['X_np'][:, 0].min() for r in d3_results[0.5]) - 0.5
-    xmax_d3 = max(r['X_np'][:, 0].max() for r in d3_results[0.5]) + 0.5
-    ymin_d3 = min(r['X_np'][:, 1].min() for r in d3_results[0.5]) - 0.5
-    ymax_d3 = max(r['X_np'][:, 1].max() for r in d3_results[0.5]) + 0.5
+    xmin_d3 = min(r['X_np'][:, 0].min() for r in d3_results[0.01]) - 0.5
+    xmax_d3 = max(r['X_np'][:, 0].max() for r in d3_results[0.01]) + 0.5
+    ymin_d3 = min(r['X_np'][:, 1].min() for r in d3_results[0.01]) - 0.5
+    ymax_d3 = max(r['X_np'][:, 1].max() for r in d3_results[0.01]) + 0.5
     xx_d3, yy_d3 = np.meshgrid(np.linspace(xmin_d3, xmax_d3, 150),
                                 np.linspace(ymin_d3, ymax_d3, 150))
     grid_d3 = torch.tensor(
         np.c_[xx_d3.ravel(), yy_d3.ravel()].astype(np.float32), device=DEVICE
     )
 
-    ref3 = d3_results[0.5][0]
-    ax22.scatter(ref3['X_np'][ref3['y_np'] == 0, 0],
-                 ref3['X_np'][ref3['y_np'] == 0, 1],
-                 c='#ff6b6b', s=10, alpha=0.35, zorder=2)
-    ax22.scatter(ref3['X_np'][ref3['y_np'] == 1, 0],
-                 ref3['X_np'][ref3['y_np'] == 1, 1],
-                 c='#74b9ff', s=10, alpha=0.35, zorder=2)
+    # Scatter de todos los datasets (alpha muy bajo = nube de fondo)
+    for r in d3_results[0.01]:
+        ax22.scatter(r['X_np'][r['y_np'] == 0, 0], r['X_np'][r['y_np'] == 0, 1],
+                     c='#ff6b6b', s=5, alpha=0.06, zorder=1)
+        ax22.scatter(r['X_np'][r['y_np'] == 1, 0], r['X_np'][r['y_np'] == 1, 1],
+                     c='#74b9ff', s=5, alpha=0.06, zorder=1)
 
-    for i, r in enumerate(d3_results[0.5][:6]):
-        # Solo dibujar fronteras de runs que convergieron (acc ≥ 0.95)
-        if r['hist']['accuracy'][-1] < 0.95:
+    for i, r in enumerate(d3_results[0.01][:6]):
+        if r['hist']['accuracy'][-1] < 0.90:
             continue
         m = r['model']
         m.eval()
@@ -360,7 +359,7 @@ def experiment_D(n_seeds: int = 10, n_epochs: int = 500):
                      alpha=0.90, zorder=5)
 
     style_ax(ax22,
-             r'D3: fronteras de decisión, $\varepsilon=0.5$'
+             r'D3: fronteras de decisión, $\varepsilon=0.01$'
              '\n' r'6 pares (data\_seed, init\_seed) distintos',
              '$x_1$', '$x_2$')
     ax22.set_aspect('equal')
