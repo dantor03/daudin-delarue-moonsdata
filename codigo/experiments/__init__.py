@@ -4,6 +4,7 @@ from .exp_c import experiment_C
 from .exp_d import experiment_D
 from .exp_e import experiment_E_robustness
 from .exp_f import experiment_F
+from .exp_g import experiment_G
 
 __all__ = [
     'experiment_A',
@@ -12,4 +13,5 @@ __all__ = [
     'experiment_D',
     'experiment_E_robustness',
     'experiment_F',
+    'experiment_G',
 ]

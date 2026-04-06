@@ -15,7 +15,7 @@ import argparse
 from .config import DEVICE, OUTPUT_DIR
 from .experiments import (
     experiment_A, experiment_B, experiment_C,
-    experiment_D, experiment_E_robustness, experiment_F,
+    experiment_D, experiment_E_robustness, experiment_F, experiment_G,
 )
 
 
@@ -66,6 +66,10 @@ def main(experiment: str = 'all', epochs: int | None = None) -> None:
     if run_all or experiment == 'F':
         experiment_F(n_seeds=10, n_epochs=epochs or 700)
 
+    # G — Convergence problem: J*_N → J*_∞
+    if run_all or experiment == 'G':
+        experiment_G(n_seeds=5, n_epochs=epochs or 700)
+
     print("\n" + "=" * 65)
     print("  TODOS LOS EXPERIMENTOS COMPLETADOS")
     print()
@@ -78,6 +82,7 @@ def main(experiment: str = 'all', epochs: int | None = None) -> None:
         'D_genericity.png',
         'E_parameter_robustness.png',
         'F_circles_parameter_distribution.png',
+        'G_convergence_problem.png',
     ]:
         print(f"    {OUTPUT_DIR}/{fname}")
     print("=" * 65)
@@ -89,7 +94,7 @@ def _parse_args():
     )
     parser.add_argument(
         '--experiment', '-e',
-        choices=['all', 'A', 'B', 'C', 'D', 'E', 'F'],
+        choices=['all', 'A', 'B', 'C', 'D', 'E', 'F', 'G'],
         default='all',
         help='Experimento a ejecutar (por defecto: all)',
     )
