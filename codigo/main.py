@@ -40,9 +40,8 @@ def main(experiment: str = 'all', epochs: int | None = None) -> None:
         experiment_A(n_epochs=epochs or 800)
 
     # B — Efecto de ε
-    results_eps = None
     if run_all or experiment == 'B':
-        results_eps = experiment_B(
+        experiment_B(
             epsilons=[0.0, 0.001, 0.01, 0.1, 0.5],
             n_epochs=epochs or 700,
         )

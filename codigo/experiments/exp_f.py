@@ -8,7 +8,6 @@ import os
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
-import matplotlib.gridspec as gridspec
 
 from ..config import DEVICE, OUTPUT_DIR, DARK_BG, PANEL_BG, TXT, style_ax
 from ..data import get_circles

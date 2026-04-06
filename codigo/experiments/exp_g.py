@@ -206,7 +206,7 @@ def experiment_G(n_seeds: int = 5, n_epochs: int = 700):
             # Guardado incremental: si Colab se corta, los resultados hasta aquí
             # están en G_results.npz y se pueden reanudar en la siguiente sesión.
             _save_results_G(results, EPSILONS, N_VALUES, RESULTS_FILE)
-            print(f"      → checkpoint guardado en G_results.npz")
+            print("      → checkpoint guardado en G_results.npz")
 
     # ── Figura G ──────────────────────────────────────────────────────────────
     COLOR = {0.0: '#e74c3c', 0.01: '#3498db'}
@@ -320,7 +320,7 @@ def experiment_G(n_seeds: int = 5, n_epochs: int = 700):
     plt.savefig(out, dpi=150, bbox_inches='tight', facecolor=DARK_BG)
     plt.close()
 
-    print(f"\n  Tasas de convergencia estimadas (gap ∝ N^α, ajuste N≥100):")
+    print("\n  Tasas de convergencia estimadas (gap ∝ N^α, ajuste N≥100):")
     for eps, alpha in rate_info.items():
         print(f"    ε={eps}: α = {alpha:.3f}  (gap ∝ N^{{{alpha:.2f}}})")
     print(f"\n  → {out}")
