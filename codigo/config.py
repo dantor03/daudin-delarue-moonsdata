@@ -12,7 +12,12 @@ warnings.filterwarnings('ignore')
 SEED = 42
 torch.manual_seed(SEED)
 np.random.seed(SEED)
-DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+if torch.cuda.is_available():
+    DEVICE = torch.device('cuda')
+elif torch.backends.mps.is_available():
+    DEVICE = torch.device('mps')
+else:
+    DEVICE = torch.device('cpu')
 
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 OUTPUT_DIR  = os.path.normpath(os.path.join(_SCRIPT_DIR, '..', 'figuras'))

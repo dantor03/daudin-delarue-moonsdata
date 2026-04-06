@@ -68,7 +68,7 @@ def main(experiment: str = 'all', epochs: int | None = None) -> None:
 
     # G — Convergence problem: J*_N → J*_∞
     if run_all or experiment == 'G':
-        experiment_G(n_seeds=5, n_epochs=epochs or 700)
+        experiment_G(n_seeds=20, n_epochs=epochs or 700)
 
     print("\n" + "=" * 65)
     print("  TODOS LOS EXPERIMENTOS COMPLETADOS")

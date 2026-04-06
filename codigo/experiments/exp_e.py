@@ -55,7 +55,7 @@ def experiment_E_robustness(n_seeds: int = 10, n_epochs: int = 500):
 
     EPS             = 0.01
     DATA_SEED_FIXED = 42
-    INIT_SEED_FIXED = 4
+    INIT_SEED_FIXED = 2   # seed 2 converge de forma limpia en make_moons (J*≈0.00015)
     SEEDS           = list(range(n_seeds))
 
     SEED_COLORS = ['#e74c3c', '#f39c12', '#2ecc71', '#3498db', '#9b59b6',
@@ -88,7 +88,7 @@ def experiment_E_robustness(n_seeds: int = 10, n_epochs: int = 500):
               f"acc={hist['accuracy'][-1]:.3f}")
 
     # ── E-2: init fija, datos variables ───────────────────────────────────────
-    print("  E-2: init_seed=4 fijo, 10 datasets distintos...")
+    print(f"  E-2: init_seed={INIT_SEED_FIXED} fijo, 10 datasets distintos...")
     results_E2_2 = []
     for s in SEEDS:
         X_s, y_s, _, _ = get_moons(seed=s)
@@ -110,9 +110,12 @@ def experiment_E_robustness(n_seeds: int = 10, n_epochs: int = 500):
         """Dibuja importancias ‖a₀ᵐ‖ ordenadas por seed."""
         for i, r in enumerate(results):
             imp = np.sort(importance(r['a0']))[::-1]
+            # Only the first curve gets a legend label for individual seeds;
+            # the rest use '_nolegend_' to avoid cluttering the legend.
+            lbl = 'Seed individual' if i == 0 else '_nolegend_'
             ax.plot(np.arange(1, len(imp) + 1), imp,
                     color=SEED_COLORS[i % len(SEED_COLORS)],
-                    lw=1.2, alpha=0.70)
+                    lw=1.2, alpha=0.70, label=lbl)
         all_imp = np.array([np.sort(importance(r['a0']))[::-1] for r in results])
         ax.plot(np.arange(1, all_imp.shape[1] + 1), all_imp.mean(axis=0),
                 color='white', lw=2.2, label='Media')
@@ -125,8 +128,8 @@ def experiment_E_robustness(n_seeds: int = 10, n_epochs: int = 500):
                  'Rank (neurona)', r'$\|a_0^m\|_2$')
         ax.legend(facecolor=PANEL_BG, labelcolor=TXT, fontsize=7)
 
-    _panel(axes[0], results_E2_1, 'E-1 — init variable, datos fijos (seed=42)')
-    _panel(axes[1], results_E2_2, 'E-2 — datos variables, init fija (seed=4)')
+    _panel(axes[0], results_E2_1, f'E-1 — init variable, datos fijos (data_seed={DATA_SEED_FIXED})')
+    _panel(axes[1], results_E2_2, f'E-2 — datos variables, init fija (init_seed={INIT_SEED_FIXED})')
 
     fig.suptitle(
         r'Experimento E — Robustez de $\nu^*$: importancia neuronal $\|a_0^m\|_2$'

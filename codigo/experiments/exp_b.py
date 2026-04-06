@@ -94,19 +94,44 @@ def experiment_B(epsilons=None, n_epochs: int = 700):
     n_eps = len(epsilons)
 
     # ── B1: Curvas de convergencia ───────────────────────────────────────────
+    def _smooth(arr, w=15):
+        """Running mean with window w (valid padding)."""
+        kernel = np.ones(w) / w
+        return np.convolve(arr, kernel, mode='valid')
+
     fig, axes = plt.subplots(1, 3, figsize=(18, 5))
     fig.patch.set_facecolor(DARK_BG)
     for eps, res in results.items():
-        h = res['hist']
-        axes[0].plot(h['loss'],      color=res['color'], lw=1.5, label=f'ε={eps}')
-        axes[1].plot(h['accuracy'],  color=res['color'], lw=1.5, label=f'ε={eps}')
-        axes[2].plot(h['loss_reg'],  color=res['color'], lw=1.5, label=f'ε={eps}')
-    style_ax(axes[0], 'Pérdida total $J$ vs época', 'Época', '$J$')
-    style_ax(axes[1], 'Accuracy vs época', 'Época', 'Acc')
+        h   = res['hist']
+        col = res['color']
+        axes[0].plot(h['loss'],                       color=col, lw=1.5, label=f'ε={eps}')
+        # Accuracy is noisy for large ε (pSGLD noise): show raw thin + smoothed thick
+        acc_raw = np.array(h['accuracy'])
+        axes[1].plot(acc_raw, color=col, lw=0.6, alpha=0.30)
+        acc_sm  = _smooth(acc_raw)
+        axes[1].plot(np.arange(len(acc_sm)), acc_sm, color=col, lw=1.8,
+                     label=f'ε={eps}')
+        axes[2].plot(h['loss_reg'], color=col, lw=1.5, label=f'ε={eps}')
+    J_CLIP  = 0.5   # ε=0.5 llega a ~3 y aplasta las demás curvas; se recorta
+    REG_CLIP = 0.15  # misma razón para el panel de energía
+
+    style_ax(axes[0],
+             f'Pérdida total $J$ vs época  (recortado a {J_CLIP})\n'
+             r'ε=0.5 supera el límite (J $\sim$ 1.5–3): queda fuera de rango',
+             'Época', '$J$')
+    style_ax(axes[1],
+             'Accuracy vs época\n'
+             r'Trazo grueso = media móvil (ventana 15)',
+             'Época', 'Acc')
     style_ax(axes[2],
-             r'Reg. supercoerciva de energía $\mathcal{E}/N_{params}$', 'Época',
-             r'$\mathcal{E}$')
+             r'Energía supercoerciva $\mathcal{E}/N_{params}$ vs época'
+             f'  (recortado a {REG_CLIP})\n'
+             r'pSGLD: se estabiliza en nivel no nulo (explora $\nu^*$, no converge a $J^*$)',
+             'Época', r'$\mathcal{E}$')
+
+    axes[0].set_ylim(0, J_CLIP)
     axes[1].set_ylim(0.45, 1.05)
+    axes[2].set_ylim(0, REG_CLIP)
     for ax in axes:
         ax.legend(facecolor=PANEL_BG, labelcolor=TXT, fontsize=8)
     fig.suptitle('Efecto de ε en la convergencia del Mean-Field ResNet',

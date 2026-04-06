@@ -63,6 +63,38 @@ from ..model import MeanFieldResNet
 from ..train import train
 
 
+def _save_results_G(results, epsilons, n_values, path):
+    """Serializa el dict results a .npz para poder reanudar o regenerar la figura."""
+    save_dict = {'EPSILONS': np.array(epsilons), 'N_VALUES': np.array(n_values)}
+    for ei, eps in enumerate(epsilons):
+        for ni, N in enumerate(n_values):
+            r = results[eps][N]
+            for metric in ('BCE_train', 'J_star_train', 'BCE_test', 'acc_train', 'acc_test'):
+                save_dict[f'{metric}_{ei}_{ni}'] = np.array(r[metric])
+    np.savez(path, **save_dict)
+
+
+def _load_results_G(path, epsilons, n_values):
+    """Carga results desde .npz.  Devuelve None si el archivo no existe."""
+    if not os.path.exists(path):
+        return None
+    data = np.load(path)
+    results = {
+        eps: {N: {'BCE_train': [], 'J_star_train': [], 'BCE_test': [],
+                  'acc_train': [], 'acc_test': []}
+              for N in n_values}
+        for eps in epsilons
+    }
+    for ei, eps in enumerate(epsilons):
+        for ni, N in enumerate(n_values):
+            for metric in ('BCE_train', 'J_star_train', 'BCE_test', 'acc_train', 'acc_test'):
+                key = f'{metric}_{ei}_{ni}'
+                if key in data:
+                    results[eps][N][metric] = data[key].tolist()
+    print(f"  ✓ Resultados parciales cargados desde {path}")
+    return results
+
+
 def experiment_G(n_seeds: int = 5, n_epochs: int = 700):
     """
     Convergence Problem: estudio empírico de J*_N → J*_∞ cuando N → ∞.
@@ -79,6 +111,8 @@ def experiment_G(n_seeds: int = 5, n_epochs: int = 700):
     EPSILONS = [0.0, 0.01]
     N_TEST   = 10_000
     SEEDS    = list(range(n_seeds))
+    RESULTS_FILE = os.path.join(os.path.dirname(__file__),
+                                '..', '..', 'figuras', 'G_results.npz')
 
     # ── Oráculo de test ───────────────────────────────────────────────────────
     # Se usa seed=999 para evitar solapamiento con las semillas de entrenamiento.
@@ -94,21 +128,35 @@ def experiment_G(n_seeds: int = 5, n_epochs: int = 700):
     y_test   = torch.tensor(y_oracle, device=DEVICE)
     print(f"  Oráculo test: {N_TEST} puntos (seed=999, scaler fijo)")
 
-    # Estructura de resultados: results[eps][N] = dict de listas
-    results = {
-        eps: {
-            N: {'BCE_train': [], 'J_star_train': [], 'BCE_test': [],
-                'acc_train': [], 'acc_test': []}
-            for N in N_VALUES
+    # ── Carga de resultados previos (reanudación) ─────────────────────────────
+    # Si existe G_results.npz de una ejecución anterior (o parcial en Colab),
+    # se cargan los resultados ya calculados y se saltan esas combinaciones.
+    results = _load_results_G(RESULTS_FILE, EPSILONS, N_VALUES)
+    if results is None:
+        results = {
+            eps: {
+                N: {'BCE_train': [], 'J_star_train': [], 'BCE_test': [],
+                    'acc_train': [], 'acc_test': []}
+                for N in N_VALUES
+            }
+            for eps in EPSILONS
         }
-        for eps in EPSILONS
-    }
 
     # ── Bucle principal ───────────────────────────────────────────────────────
     for eps in EPSILONS:
         print(f"\n  ε = {eps} ──────────────────────────────────────────────")
         for N in N_VALUES:
-            for s in SEEDS:
+            # Saltar si ya tenemos suficientes semillas para esta combinación
+            already = len(results[eps][N]['BCE_test'])
+            if already >= len(SEEDS):
+                r  = results[eps][N]
+                bt = np.array(r['BCE_train'])
+                te = np.array(r['BCE_test'])
+                print(f"    N={N:4d}: ya calculado ({already} seeds) — "
+                      f"BCE_test={te.mean():.4f}±{te.std():.4f}  "
+                      f"gap={(te - bt).mean():.4f}")
+                continue
+            for s in SEEDS[already:]:
                 # Dataset de entrenamiento: N puntos frescos, escalados con el
                 # scaler del oráculo para consistencia entre runs.
                 X_raw, y_raw = make_moons(
@@ -147,7 +195,7 @@ def experiment_G(n_seeds: int = 5, n_epochs: int = 700):
                 results[eps][N]['acc_train'].append(acc_train)
                 results[eps][N]['acc_test'].append(acc_test)
 
-            # Resumen por N
+            # Resumen por N + guardado incremental
             r  = results[eps][N]
             bt = np.array(r['BCE_train'])
             te = np.array(r['BCE_test'])
@@ -155,6 +203,10 @@ def experiment_G(n_seeds: int = 5, n_epochs: int = 700):
                   f"BCE_test={te.mean():.4f}±{te.std():.4f}  "
                   f"gap={(te - bt).mean():.4f}  "
                   f"acc_test={np.mean(r['acc_test']):.3f}")
+            # Guardado incremental: si Colab se corta, los resultados hasta aquí
+            # están en G_results.npz y se pueden reanudar en la siguiente sesión.
+            _save_results_G(results, EPSILONS, N_VALUES, RESULTS_FILE)
+            print(f"      → checkpoint guardado en G_results.npz")
 
     # ── Figura G ──────────────────────────────────────────────────────────────
     COLOR = {0.0: '#e74c3c', 0.01: '#3498db'}

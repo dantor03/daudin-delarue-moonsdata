@@ -84,8 +84,8 @@ def experiment_D(n_seeds: int = 10, n_epochs: int = 500):
     SEEDS = list(range(n_seeds))
     EPS_COMPARE = [0.0, 0.01]
     DATA_SEED_FIXED = 42
-    INIT_SEED_FIXED = 4   # seed 4 converge bien en D1 (J*≈0.005) → D2 muestra
-                          # variabilidad real de γ₀ sin estar contaminada por
+    INIT_SEED_FIXED = 2   # seed 2 da el J* más bajo en D1 (J*≈0.00015) → D2 muestra
+                          # variabilidad real de γ₀ sin contaminación por
                           # una mala inicialización
 
     # ── D1: γ₀ fija, inicialización variable ─────────────────────────────────
@@ -278,10 +278,10 @@ def experiment_D(n_seeds: int = 10, n_epochs: int = 500):
     ax12 = fig.add_subplot(gs[1, 2])
     ax12.set_facecolor(PANEL_BG)
 
-    xmin_g = min(r['X_np'][:, 0].min() for r in d2_results[0.01]) - 0.5
-    xmax_g = max(r['X_np'][:, 0].max() for r in d2_results[0.01]) + 0.5
-    ymin_g = min(r['X_np'][:, 1].min() for r in d2_results[0.01]) - 0.5
-    ymax_g = max(r['X_np'][:, 1].max() for r in d2_results[0.01]) + 0.5
+    xmin_g = min(r['X_np'][:, 0].min() for r in d2_results[0.01]) - 0.15
+    xmax_g = max(r['X_np'][:, 0].max() for r in d2_results[0.01]) + 0.15
+    ymin_g = min(r['X_np'][:, 1].min() for r in d2_results[0.01]) - 0.15
+    ymax_g = max(r['X_np'][:, 1].max() for r in d2_results[0.01]) + 0.15
     xx_c, yy_c = np.meshgrid(np.linspace(xmin_g, xmax_g, 150),
                               np.linspace(ymin_g, ymax_g, 150))
     grid_c = torch.tensor(
@@ -294,20 +294,22 @@ def experiment_D(n_seeds: int = 10, n_epochs: int = 500):
         ax12.scatter(r['X_np'][r['y_np'] == 1, 0], r['X_np'][r['y_np'] == 1, 1],
                      c='#74b9ff', s=5, alpha=0.06, zorder=1)
 
-    for i, r in enumerate(d2_results[0.01][:6]):
-        if r['hist']['accuracy'][-1] < 0.90:
+    for i, r in enumerate(d2_results[0.01]):
+        if r['hist']['accuracy'][-1] < 0.95:
             continue
         m = r['model']
         m.eval()
         with torch.no_grad():
             Z = torch.sigmoid(m(grid_c)).cpu().numpy().reshape(xx_c.shape)
+        ax12.contourf(xx_c, yy_c, Z, levels=[0.0, 0.5, 1.0],
+                      colors=[SEED_COLORS[i], SEED_COLORS[i]], alpha=0.06, zorder=2)
         ax12.contour(xx_c, yy_c, Z, levels=[0.5],
                      colors=[SEED_COLORS[i]], linewidths=1.8,
                      alpha=0.90, zorder=5)
 
     style_ax(ax12,
              r'D2: fronteras de decisión, $\varepsilon=0.01$'
-             '\n' r'6 datasets distintos ($\gamma_0$ variables)',
+             '\n' r'$\gamma_0$ variables  (acc $\geq$ 0.95)',
              '$x_1$', '$x_2$')
     ax12.set_aspect('equal')
     ax12.set_xlim(xmin_g, xmax_g)
@@ -330,10 +332,10 @@ def experiment_D(n_seeds: int = 10, n_epochs: int = 500):
     ax22 = fig.add_subplot(gs[2, 2])
     ax22.set_facecolor(PANEL_BG)
 
-    xmin_d3 = min(r['X_np'][:, 0].min() for r in d3_results[0.01]) - 0.5
-    xmax_d3 = max(r['X_np'][:, 0].max() for r in d3_results[0.01]) + 0.5
-    ymin_d3 = min(r['X_np'][:, 1].min() for r in d3_results[0.01]) - 0.5
-    ymax_d3 = max(r['X_np'][:, 1].max() for r in d3_results[0.01]) + 0.5
+    xmin_d3 = min(r['X_np'][:, 0].min() for r in d3_results[0.01]) - 0.15
+    xmax_d3 = max(r['X_np'][:, 0].max() for r in d3_results[0.01]) + 0.15
+    ymin_d3 = min(r['X_np'][:, 1].min() for r in d3_results[0.01]) - 0.15
+    ymax_d3 = max(r['X_np'][:, 1].max() for r in d3_results[0.01]) + 0.15
     xx_d3, yy_d3 = np.meshgrid(np.linspace(xmin_d3, xmax_d3, 150),
                                 np.linspace(ymin_d3, ymax_d3, 150))
     grid_d3 = torch.tensor(
@@ -347,20 +349,22 @@ def experiment_D(n_seeds: int = 10, n_epochs: int = 500):
         ax22.scatter(r['X_np'][r['y_np'] == 1, 0], r['X_np'][r['y_np'] == 1, 1],
                      c='#74b9ff', s=5, alpha=0.06, zorder=1)
 
-    for i, r in enumerate(d3_results[0.01][:6]):
-        if r['hist']['accuracy'][-1] < 0.90:
+    for i, r in enumerate(d3_results[0.01]):
+        if r['hist']['accuracy'][-1] < 0.95:
             continue
         m = r['model']
         m.eval()
         with torch.no_grad():
             Z = torch.sigmoid(m(grid_d3)).cpu().numpy().reshape(xx_d3.shape)
+        ax22.contourf(xx_d3, yy_d3, Z, levels=[0.0, 0.5, 1.0],
+                      colors=[SEED_COLORS[i], SEED_COLORS[i]], alpha=0.06, zorder=2)
         ax22.contour(xx_d3, yy_d3, Z, levels=[0.5],
                      colors=[SEED_COLORS[i]], linewidths=1.8,
                      alpha=0.90, zorder=5)
 
     style_ax(ax22,
              r'D3: fronteras de decisión, $\varepsilon=0.01$'
-             '\n' r'6 pares (data\_seed, init\_seed) distintos',
+             '\n' r'(data\_seed, init\_seed) distintos  (acc $\geq$ 0.95)',
              '$x_1$', '$x_2$')
     ax22.set_aspect('equal')
     ax22.set_xlim(xmin_d3, xmax_d3)
