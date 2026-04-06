@@ -143,7 +143,7 @@ X_0 ∈ ℝ²  →  [ODE: dX/dt = F(X,t), t ∈ [0,1]]  →  X_T ∈ ℝ²  → 
 |---|---|---|
 | Adam + cosine annealing | A, D | Convergencia rápida |
 | SGD + lr constante | C | Verificación PL sin artefactos del scheduler |
-| **pSGLD** + cosine annealing | B, E, F | Adam base + ruido acoplado al precondicionador $M_t$: $\theta \leftarrow \text{Adam}(\theta,\nabla J) + \sqrt{2\eta\varepsilon M_t}\,\xi$ |
+| **pSGLD** + cosine annealing | B, E, F, G | Adam base + ruido acoplado al precondicionador $M_t$: $\theta \leftarrow \text{Adam}(\theta,\nabla J) + \sqrt{2\eta\varepsilon M_t}\,\xi$ |
 
 **pSGLD** (Li et al. 2016): el ruido de Langevin está acoplado al precondicionador de Adam componente a componente, $M_t[j] = \min(1/(\sqrt{\hat{v}_t[j]} + \delta),\, 1)$. La cota superior en 1 evita explosión de ruido en direcciones planas. El acoplamiento es necesario para que la distribución estacionaria sea la de Gibbs $\nu^* \propto \exp(-J/\varepsilon)$; ruido isotrópico rompe esta propiedad.
 

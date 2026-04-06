@@ -351,7 +351,7 @@ Modo & Parámetro & Experimentos & Objetivo \\
 \midrule
 Adam + cosine annealing & (defecto) & A, D & Convergencia rápida \\
 SGD + lr constante & \texttt{use\_sgd=True} & C & Verificación PL sin artefactos \\
-pSGLD + cosine annealing & \texttt{use\_sgld=True} & B, E, F & Muestreo de $\nu_t^*$ \\
+pSGLD + cosine annealing & \texttt{use\_sgld=True} & B, E, F, G & Muestreo de $\nu_t^*$ \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -538,14 +538,14 @@ $n_\text{steps}$ & 10 & todos & Pasos RK4 \\
 $\varepsilon$ & 0.01 & todos & Temperatura entrópica / regularización \\
 $\alpha_0$ & 0.01 & todos & Tasa de aprendizaje inicial \\
 $\beta_1, \beta_2$ & 0.9, 0.999 & A, D & Momentos de Adam \\
-$n_\text{epochs}$ & 800 (A), 700 (B–F) & todos & Épocas de entrenamiento \\
+$n_\text{epochs}$ & 800 (A), 700 (B–G) & todos & Épocas de entrenamiento \\
 $G_{\max}$ & 5.0 & todos & Umbral de gradient clipping \\
 $c_1$ & 0.05 & todos & Coeficiente cuártico del prior \\
 $c_2$ & 0.5 & todos & Coeficiente cuadrático del prior \\
 \midrule
-\multicolumn{4}{l}{\textit{Solo pSGLD (experimentos B, E, F):}} \\
-$\sqrt{2\eta_s\varepsilon M_s}$ & variable & B, E, F & Escala del ruido precondicionado (por componente) \\
-$\lambda$ & $1$ & B, E, F & Cota superior de $M_s$ (evita explosión en dirs.\ planas) \\
+\multicolumn{4}{l}{\textit{Solo pSGLD (experimentos B, E, F, G):}} \\
+$\sqrt{2\eta_s\varepsilon M_s}$ & variable & B, E, F, G & Escala del ruido precondicionado (por componente) \\
+$\lambda$ & $1$ & B, E, F, G & Cota superior de $M_s$ (evita explosión en dirs.\ planas) \\
 \bottomrule
 \end{tabular}
 \caption{Hiperparámetros del modelo y el entrenamiento.}
@@ -634,7 +634,11 @@ ruido es exactamente cero (Adam estándar).
 
 \begin{itemize}
   \item \textbf{B1 — Curvas de convergencia:} $J$ total, accuracy y
-        $\mathcal{E}$ vs.\ época para cada $\varepsilon$.
+        $\mathcal{E}$ vs.\ época para cada $\varepsilon$. Los ejes de $J$
+        y $\mathcal{E}$ están recortados ($J \leq 0.5$,
+        $\mathcal{E} \leq 0.15$) para que $\varepsilon=0.5$ no domine la
+        escala; las curvas de accuracy muestran la señal bruta (trazo fino)
+        y una media móvil de ventana 15 (trazo grueso).
         Predicción: $J^*$ crece con $\varepsilon$ (la regularización penaliza
         la solución óptima ``pura''), pero todas las $\varepsilon$ convergen a
         accuracy $\approx 1.0$.
@@ -703,7 +707,7 @@ $n_\text{seeds} = 10$, 500 épocas, Adam y $\varepsilon \in \{0, 0.01\}$:
   \item \textbf{D1 — $\gamma_0$ fija, inicialización variable:}
         \texttt{data\_seed}$=42$, \texttt{init\_seed}$\in\{0,\ldots,9\}$.
   \item \textbf{D2 — Inicialización fija, $\gamma_0$ variable:}
-        \texttt{init\_seed}$=4$, \texttt{data\_seed}$\in\{0,\ldots,9\}$.
+        \texttt{init\_seed}$=2$, \texttt{data\_seed}$\in\{0,\ldots,9\}$.
   \item \textbf{D3 — Ambas aleatorias:}
         \texttt{data\_seed}$=$\texttt{init\_seed}$=s$.
 \end{itemize}
@@ -715,7 +719,7 @@ necesariamente la varianza entre seeds (el paper garantiza convergencia desde
 cualquier punto, no menor dispersión). Las fronteras de decisión de D2 y D3
 son topológicamente similares entre sí, verificando el Meta-Teorema~1.
 La columna derecha de D2/D3 superpone los contornos $P(y=1|x) = 0.5$
-solo para runs con acc $\geq 0.90$, sobre una nube de puntos de todos los
+solo para runs con acc $\geq 0.95$, sobre una nube de puntos de todos los
 datasets.
 
 \subsection{Experimento E: Robustez de $\nu^*$ (make\_moons)}
@@ -730,7 +734,7 @@ para explorar la distribución de Gibbs $\nu^*$ en lugar del MAP):
 \begin{itemize}
   \item \textbf{E-1:} \texttt{data\_seed}$=42$ fijo, \texttt{init\_seed}
         $\in \{0,\ldots,9\}$ variable.
-  \item \textbf{E-2:} \texttt{init\_seed}$=4$ fijo, \texttt{data\_seed}
+  \item \textbf{E-2:} \texttt{init\_seed}$=2$ fijo, \texttt{data\_seed}
         $\in \{0,\ldots,9\}$ variable.
 \end{itemize}
 
@@ -775,6 +779,65 @@ $J \pm 1\sigma$ para F1 y F2 superpuestas. La banda más estrecha de F1 vs.\
 F2 (o viceversa) indica cuál fuente de variabilidad domina la robustez del
 entrenamiento.
 
+\textbf{Métrica de convergencia.} Como pSGLD explora la distribución de Gibbs
+$\nu^* \propto \exp(-J/\varepsilon)$ y no converge puntualmente a $J^*$, el
+nivel de pérdida se reporta como $\bar{J}_\text{final}$, la media de las
+últimas 50 épocas, que estima el nivel estacionario de la cadena de Markov.
+
+\subsection{Experimento G: Problema de convergencia ($N \to \infty$)}
+
+\textbf{Objetivo.} Verificar empíricamente que el valor óptimo del problema
+de campo medio finito $J^*_N$ converge al valor óptimo del problema de campo
+medio con infinitas partículas $J^*_\infty$ cuando $N \to \infty$, y estimar
+la tasa de convergencia.
+
+\textbf{Marco teórico.} El paper \cite{daudin2025} establece que
+\begin{equation}
+  J^*_N \;\xrightarrow{N\to\infty}\; J^*_\infty.
+\end{equation}
+Una tasa natural esperada por analogía con la ley de los grandes números es
+$\text{gap}(N) := J^*_\infty - J^*_N \sim C \cdot N^{-\alpha}$ con
+$\alpha \approx 0.5$. El experimento busca la tasa empírica.
+
+\textbf{Protocolo.} Se consideran $N \in \{25, 50, 100, 200, 400, 800\}$
+partículas y $\varepsilon \in \{0, 0.01\}$. Para cada combinación $(N, \varepsilon)$
+se realizan 20 entrenamientos independientes (\texttt{n\_seeds}$=20$) con
+700 épocas y \textbf{pSGLD} (\texttt{use\_sgld=True}). Se usa el optimizador
+pSGLD (no Adam) para que el nivel de ruido sea coherente con el parámetro
+$\varepsilon$: con $\varepsilon=0$ el ruido es exactamente cero.
+
+\textbf{Estimador de $J^*_\infty$.} El valor $J^*_\infty$ es inaccesible
+directamente; se aproxima mediante un \emph{test set oráculo}: se evalúa la
+pérdida BCE (sin término de regularización) del modelo entrenado sobre un
+conjunto de test de $N_\text{test} = 4000$ puntos i.i.d.\ de make\_moons.
+La hipótesis es que, para $N$ grande, el BCE en test tiende a $J^*_\infty$
+(la pérdida de Bayes en la distribución de datos). El gap se define como:
+\begin{equation}
+  \text{gap}(N) := J^*_\infty - J^*_N \;\approx\;
+  \text{BCE}_\text{test}(N_\text{large}) - \text{BCE}_\text{test}(N).
+\end{equation}
+En la práctica, $J^*_\infty$ se aproxima con la media de BCE\_test sobre las
+20 semillas para $N=800$.
+
+\textbf{Figura (G\_convergence\_problem.png).} Layout 1×2:
+\begin{itemize}
+  \item \textbf{G1 — Convergencia de la pérdida en test:} BCE\_test (media
+        $\pm 1\sigma$ sobre 20 seeds) vs.\ $N$ en escala log-log, para
+        $\varepsilon=0$ y $\varepsilon=0.01$. Evidencia visual de que
+        BCE\_test$\,(N) \to J^*_\infty$ al crecer $N$.
+  \item \textbf{G2 — Tasa de convergencia del gap:} $\log\,\text{gap}(N)$ vs.\
+        $\log N$ con ajuste lineal (mínimos cuadrados sobre $N \geq 100$),
+        cuya pendiente es $-\alpha$. Los resultados empíricos son:
+        $\varepsilon=0$: $\alpha \approx 0.78$;
+        $\varepsilon=0.01$: $\alpha \approx 0.85$.
+        Ambas tasas son más rápidas que la referencia $N^{-0.5}$.
+\end{itemize}
+
+\textbf{Checkpoint incremental.} Para soportar interrupciones (sesiones de
+Colab), los resultados se guardan en \texttt{figuras/G\_results.npz} tras
+completar cada valor de $N$. Al relanzar, las combinaciones $(N,\varepsilon)$
+ya calculadas se omiten automáticamente.
+
 % ============================================================
 \section{Resumen de la arquitectura}
 \label{sec:resumen}
@@ -784,7 +847,7 @@ entrenamiento.
 \toprule
 Bloque & Descripción \\
 \midrule
-Datasets & make\_moons (A–E) y make\_circles (F), $N=400$, normalizados \\
+Datasets & make\_moons (A–E, G) y make\_circles (F), $N=400$, normalizados \\
 ODE & $dX_t/dt = F(X_t,t)$, $t \in [0,1]$, 10 pasos RK4 \\
 Campo $F$ & $(1/M)\sum_m \tanh(a_1^m \cdot x + a_2^m t + b_1^m)\,a_0^m$,\; $M=64$ \\
 Parámetros ODE & $W_1 \in \R^{64\times3}$, $b_1\in\R^{64}$, $W_0\in\R^{2\times64}$ (384 total)\\
@@ -793,7 +856,7 @@ Total parámetros & 387 \\
 Pérdida & $J = \text{BCE} + \varepsilon \cdot \mathcal{E}$,\; $\varepsilon = 0.01$ \\
 Optimizador (A, D) & Adam \cite{kingma2015adam},\; $\alpha_0=0.01$,\; cosine annealing \\
 Optimizador (C) & SGD,\; $\alpha=0.01$ constante,\; sin ruido \\
-Optimizador (B, E, F) & pSGLD \cite{li2016psgld},\; $\theta \leftarrow \text{Adam}(\theta,\nabla J) + \sqrt{2\eta\varepsilon M}\,\xi$,\; $M = \min(1/\sqrt{\hat{v}}+\delta, 1)$ \\
+Optimizador (B, E, F, G) & pSGLD \cite{li2016psgld},\; $\theta \leftarrow \text{Adam}(\theta,\nabla J) + \sqrt{2\eta\varepsilon M}\,\xi$,\; $M = \min(1/\sqrt{\hat{v}}+\delta, 1)$ \\
 Gradient clip & $G_{\max}=5$ (todos los modos) \\
 \bottomrule
 \end{tabular}

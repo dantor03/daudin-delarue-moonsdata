@@ -2,7 +2,7 @@
 
 **Referencia:** Daudin, S. & Delarue, F. (2025). *Genericity of the Polyak-Łojasiewicz inequality for mean-field Neural ODEs with entropic regularization.* arXiv:2507.08486.
 
-**Código:** `python -m codigo` — ejecuta todos los experimentos. Opciones: `--experiment {A,B,C,D,E,F}`, `--epochs N`.
+**Código:** `python -m codigo` — ejecuta todos los experimentos. Opciones: `--experiment {A,B,C,D,E,F,G}`, `--epochs N`.
 
 ---
 
@@ -17,7 +17,8 @@
 - [7. Experimento D — Genericidad: robustez a semillas](#7-experimento-d--genericidad-robustez-a-semillas)
 - [8. Experimento E — Robustez de $\nu^*$ (make\_moons)](#8-experimento-e--robustez-de-nu-make_moons)
 - [9. Experimento F — Convergencia en make\_circles](#9-experimento-f--convergencia-en-make_circles)
-- [10. Conclusiones](#10-conclusiones)
+- [10. Experimento G — Problema de convergencia ($N \to \infty$)](#10-experimento-g--problema-de-convergencia-n-to-infty)
+- [11. Conclusiones](#11-conclusiones)
 - [Referencias](#referencias)
 
 ---
@@ -113,7 +114,7 @@ La condición PL es **más débil que la convexidad estricta** pero suficiente p
 
 ### 3.1 Dataset
 
-Se usa `make_moons` de scikit-learn con $N = 400$ puntos y ruido $\sigma = 0.12$, estandarizado con `StandardScaler`. Los experimentos E y F usan también `make_circles` ($N=400$, noise=0.08, factor=0.5).
+Se usa `make_moons` de scikit-learn con $N = 400$ puntos y ruido $\sigma = 0.12$, estandarizado con `StandardScaler`. El experimento F usa `make_circles` ($N=400$, noise=0.08, factor=0.5). El experimento G varía $N \in \{25, 50, 100, 200, 400, 800\}$ para estudiar la convergencia en número de partículas.
 
 En el lenguaje del paper, los datos constituyen la **distribución inicial empírica**:
 
@@ -141,7 +142,7 @@ $$J(\theta) = \underbrace{\frac{1}{N}\sum_{i=1}^N \text{BCE}(\text{logit}_i, y_i
 
 El segundo término es el **término de energía** de la KL: $\mathbb{E}_{\nu_t}[\ell(a)]$. Para parámetros puntuales ($\nu_t = \frac{1}{M}\sum_m \delta_{\theta_m}$), la entropía diferencial $H(\nu_t)$ es técnicamente $-\infty$ respecto a un prior continuo, por lo que solo el término de energía es accesible. Equivale a regularización L4+L2 (*weight decay* polinomial) y actúa como **prior energético** $\nu^\infty$.
 
-La **entropía** de la KL se implementa en los experimentos B, E y F mediante **SGLD** (Stochastic Gradient Langevin Dynamics, ver §3.4).
+La **entropía** de la KL se implementa en los experimentos B, E, F y G mediante **SGLD** (Stochastic Gradient Langevin Dynamics, ver §3.4).
 
 ### 3.4 Modos de optimización
 
@@ -151,7 +152,7 @@ La función `train()` implementa tres modos, seleccionados según el objetivo de
 |---|---|---|---|
 | **Adam** (defecto) | — | A, D | Adam + cosine annealing |
 | **SGD puro** | `use_sgd=True` | C | $\theta \leftarrow \theta - \eta \nabla J$ (lr constante) |
-| **pSGLD** | `use_sgld=True` | B, E, F | $\theta \leftarrow \text{Adam}(\theta, \nabla J) + \sqrt{2\eta\varepsilon M_t}\,\xi$, $\xi \sim \mathcal{N}(0, I)$ |
+| **pSGLD** | `use_sgld=True` | B, E, F, G | $\theta \leftarrow \text{Adam}(\theta, \nabla J) + \sqrt{2\eta\varepsilon M_t}\,\xi$, $\xi \sim \mathcal{N}(0, I)$ |
 
 **pSGLD** (preconditioned Stochastic Gradient Langevin Dynamics, Li et al. 2016) combina Adam como optimizador base con ruido de Langevin **acoplado al precondicionador** $M_t$ de Adam:
 
@@ -193,6 +194,8 @@ El rectángulo discontinuo en cada snapshot indica la extensión original de $\g
 ### B1 — Curvas de convergencia
 
 ![Curvas de convergencia](../figuras/B1_convergence_curves.png)
+
+Los ejes de $J$ y $\mathcal{E}$ están recortados ($J \leq 0.5$, $\mathcal{E} \leq 0.15$) para que $\varepsilon=0.5$ no domine la escala. Las curvas de accuracy muestran la señal bruta (trazo fino) y una media móvil de ventana 15 (trazo grueso).
 
 **Panel izquierdo (pérdida total $J$):** Todos los modelos convergen. Para $\varepsilon$ mayores, el valor asintótico $J^*$ es más alto porque incluye mayor penalización de regularización. La velocidad de convergencia es comparable entre todos los $\varepsilon$.
 
@@ -250,7 +253,7 @@ El ratio $\|\nabla J\|^2 / (2(J - J^*))$ se mantiene positivo y por encima de $\
 **Configuración:** $n = 10$ seeds, 500 épocas, $\varepsilon \in \{0, 0.01\}$.
 
 - **D1:** Dataset fijo (`data_seed=42`), inicialización aleatoria (seeds 0–9). Mide robustez al *paisaje de pérdida* desde distintos puntos de partida.
-- **D2:** Inicialización fija (`init_seed=4`), dataset aleatorio (seeds 0–9). Mide robustez a la *distribución de datos* $\gamma_0$ — directamente el enunciado de genericidad.
+- **D2:** Inicialización fija (`init_seed=2`), dataset aleatorio (seeds 0–9). Mide robustez a la *distribución de datos* $\gamma_0$ — directamente el enunciado de genericidad.
 - **D3:** `data_seed = init_seed = s` para cada $s$. Escenario más realista: ninguna fuente de aleatoriedad está controlada.
 
 ![Genericidad](../figuras/D_genericity.png)
@@ -260,14 +263,14 @@ El ratio $\|\nabla J\|^2 / (2(J - J^*))$ se mantiene positivo y por encima de $\
 - **Columna central:** Ídem para $\varepsilon=0.01$.
 - **Columna derecha:**
   - D1: Boxplots de $\hat{\mu}_{PL}$ y $J^*$ entre seeds para $\varepsilon=0$ (rojo) vs $\varepsilon=0.01$ (verde).
-  - D2/D3: Fronteras de decisión superpuestas ($\varepsilon=0.01$) — nube de puntos de todos los datasets como fondo (alpha muy bajo), contornos $P(y=1|x)=0.5$ de los runs con acc ≥ 90%.
+  - D2/D3: Fronteras de decisión superpuestas ($\varepsilon=0.01$) — nube de puntos de todos los datasets como fondo (alpha muy bajo), contornos $P(y=1|x)=0.5$ de los runs con acc ≥ 95%.
 
 ### Interpretación
 
 | Sub-experimento | $\gamma_0$ | $\theta_0$ | Fuente de variabilidad |
 |---|---|---|---|
 | D1 | Fija (seed=42) | Aleatoria (0–9) | Paisaje de pérdida (init) |
-| D2 | Aleatoria (0–9) | Fija (seed=4) | Distribución de datos |
+| D2 | Aleatoria (0–9) | Fija (seed=2) | Distribución de datos |
 | D3 | Aleatoria ($s$) | Aleatoria ($s$) | Ambas combinadas |
 
 La banda ±1σ de D3 debe ser la más ancha (combina ambas fuentes). Con $\varepsilon=0.01$ la condición PL garantiza $\hat{\mu} > 0$ para todo run; la regularización no reduce necesariamente la varianza entre seeds, sino que garantiza convergencia desde cualquier punto de partida. Las fronteras de D2/D3 son cualitativamente similares entre sí a pesar de provenir de $(γ_0, θ_0)$ completamente distintos — verificación visual del Meta-Teorema 1.
@@ -281,7 +284,7 @@ La banda ±1σ de D3 debe ser la más ancha (combina ambas fuentes). Con $\varep
 **Configuración:** $\varepsilon = 0.01$, $n = 10$ seeds, 500 épocas cada run.
 
 - **E-1:** `data_seed=42` fijo, `init_seed ∈ {0,...,9}` — 10 inicializaciones distintas del mismo dataset.
-- **E-2:** `init_seed=4` fijo, `data_seed ∈ {0,...,9}` — 10 datasets distintos con la misma inicialización.
+- **E-2:** `init_seed=2` fijo, `data_seed ∈ {0,...,9}` — 10 datasets distintos con la misma inicialización.
 
 ![Robustez de ν*](../figuras/E_parameter_robustness.png)
 
@@ -311,7 +314,7 @@ Si el Meta-Teorema 1 se cumple (minimizador único estable), las curvas de impor
 **Panel único:** Curvas de pérdida de F1 (rojo) y F2 (azul) superpuestas.
 - Curvas individuales por seed en trazo fino y transparente (alpha=0.25).
 - Media sobre seeds en trazo grueso + banda ±1σ.
-- Leyenda con $J^*$ media ± std para cada sub-experimento.
+- Leyenda con $\bar{J}_\text{final}$ (media de las últimas 50 épocas) ± std para cada sub-experimento. Se usa $\bar{J}_\text{final}$ en lugar de $J^*$ porque pSGLD explora la distribución estacionaria $\nu^* \propto \exp(-J/\varepsilon)$ y no converge puntualmente al mínimo.
 
 **Motivación teórica (predicción sobre $\nu^*$):** Si el aprendizaje respeta la simetría $SO(2)$ de make_circles, la distribución óptima $\nu^*$ también debería ser isotrópica. En particular, los pesos de entrada $a_1^m \in \mathbb{R}^2$ deberían distribuirse uniformemente en $S^1$ — en contraste con la distribución bimodal observada en make_moons, donde las dos lunas tienen una dirección preferida. Esta predicción es cuantificable mediante la longitud resultante media:
 
@@ -321,7 +324,35 @@ $\bar{R} \approx 0$ indica distribución isotrópica; $\bar{R} \approx 1$ indica
 
 ---
 
-## 10. Conclusiones
+## 10. Experimento G — Problema de convergencia ($N \to \infty$)
+
+**Objetivo:** Verificar empíricamente que el valor óptimo del problema de campo medio finito $J^*_N$ converge al valor óptimo con infinitas partículas $J^*_\infty$ cuando $N \to \infty$, y estimar la tasa de convergencia. Optimizador: **pSGLD** (coherente con el rol de $\varepsilon$ como temperatura).
+
+**Marco teórico:** El paper establece $J^*_N \xrightarrow{N\to\infty} J^*_\infty$. La tasa natural esperada por analogía con la ley de los grandes números sería $\text{gap}(N) \sim C \cdot N^{-0.5}$. El experimento estima la tasa empírica.
+
+**Configuración:** $N \in \{25, 50, 100, 200, 400, 800\}$, $\varepsilon \in \{0, 0.01\}$, 20 seeds por combinación, 700 épocas.
+
+**Estimador de $J^*_\infty$:** Se evalúa la BCE (sin regularización) sobre un test set oráculo de $N_\text{test} = 4000$ puntos. El gap se define como:
+$$\text{gap}(N) \approx \text{BCE}_\text{test}(N_\text{large}) - \text{BCE}_\text{test}(N)$$
+donde $J^*_\infty$ se aproxima con la media de BCE$_\text{test}$ para $N=800$.
+
+![Convergencia N→∞](../figuras/G_convergence_problem.png)
+
+**Layout 1×2:**
+
+- **G1 — BCE en test vs $N$:** BCE$_\text{test}$ (media ±1σ sobre 20 seeds) en escala log-log, para $\varepsilon=0$ y $\varepsilon=0.01$. Evidencia visual de que BCE$_\text{test}(N) \to J^*_\infty$ al crecer $N$. Con $\varepsilon=0.01$ el gap a pequeño $N$ es 2-3× menor que con $\varepsilon=0$.
+
+- **G2 — Tasa de convergencia del gap:** $\log\,\text{gap}(N)$ vs. $\log N$ con ajuste lineal (mínimos cuadrados sobre $N \geq 100$). La pendiente es $-\alpha$. Resultados empíricos:
+  - $\varepsilon=0$: $\alpha \approx 0.78$
+  - $\varepsilon=0.01$: $\alpha \approx 0.85$
+
+  Ambas tasas son más rápidas que la referencia $N^{-0.5}$, sugiriendo que el campo medio entrópico converge mejor de lo esperado por la analogía con la ley de los grandes números.
+
+**Checkpoint incremental:** Los resultados se guardan en `figuras/G_results.npz` tras completar cada valor de $N$, permitiendo reanudar experimentos interrumpidos (sesiones de Colab).
+
+---
+
+## 11. Conclusiones
 
 | Resultado del paper | Verificación empírica |
 |---|---|
@@ -333,12 +364,13 @@ $\bar{R} \approx 0$ indica distribución isotrópica; $\bar{R} \approx 1$ indica
 | $\varepsilon > 0$ garantiza convergencia desde cualquier inicialización | Exp. D1: $\hat{\mu} > 0$ para todo init seed con $\varepsilon=0.01$ |
 | $\nu^*$ es robusta a las condiciones de entrenamiento | Exp. E: curvas de importancia $\|a_0^m\|_2$ estables entre seeds en E-1 y E-2 |
 | La geometría del dataset determina la estructura de $\nu^*$ | Exp. F: make_circles (simétrico $SO(2)$) → convergencia y $\nu^*$ isotrópicos; contraste con moons (bimodal) |
+| *Problema abierto*: $J^*_N \to J^*_\infty$ cuando $N \to \infty$ | Exp. G: BCE$_\text{test}$ converge con tasa empírica $\alpha \approx 0.78$–$0.85$ (más rápida que $N^{-1/2}$ clásico) |
 
 La contribución más importante del paper es la **robustez del resultado**: $\varepsilon$ no necesita ser grande para garantizar la condición PL y la convergencia exponencial. Con cualquier $\varepsilon > 0$, por pequeño que sea, el descenso en gradiente converge exponencialmente al mínimo global — sin convexidad.
 
 **Limitaciones de la implementación:**
 1. **Restricción temporal:** $a_0^m$ y $a_1^m$ son constantes en $t$; solo $a_2^m(t)$ varía linealmente. El espacio de controles es un subconjunto estricto del del paper.
-2. **Término de regularización:** Solo se implementa el término de energía de la KL ($\mathbb{E}_\nu[\ell(a)]$ = regularización L4+L2). El término de entropía $-H(\nu_t)$ se aproxima mediante el ruido de Langevin (SGLD) en B/E/F, no mediante inferencia variacional exacta.
+2. **Término de regularización:** Solo se implementa el término de energía de la KL ($\mathbb{E}_\nu[\ell(a)]$ = regularización L4+L2). El término de entropía $-H(\nu_t)$ se aproxima mediante el ruido de Langevin (SGLD) en B/E/F/G, no mediante inferencia variacional exacta.
 3. **$M$ finito:** La teoría es exacta en el límite $M \to \infty$. Los experimentos usan $M=64$ partículas.
 
 ---
