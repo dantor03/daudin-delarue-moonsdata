@@ -330,7 +330,7 @@ Si el Meta-Teorema 1 se cumple (minimizador único estable), las curvas de impor
 
 **Configuración:** $N \in \{25, 50, 100, 200, 400, 800\}$, $\varepsilon \in \{0, 0.01\}$, 20 seeds por combinación, 700 épocas.
 
-**Estimador de $J^*_\infty$:** Se evalúa la BCE (sin regularización) sobre un test set oráculo de $N_\text{test} = 4000$ puntos. El gap se define como:
+**Estimador de $J^*_\infty$:** Se evalúa la BCE (sin regularización) sobre un test set oráculo de $N_\text{test} = 10\,000$ puntos (semilla fija = 999). El gap se define como:
 $$\text{gap}(N) \approx \text{BCE}_\text{test}(N_\text{large}) - \text{BCE}_\text{test}(N)$$
 donde $J^*_\infty$ se aproxima con la media de BCE$_\text{test}$ para $N=800$.
 

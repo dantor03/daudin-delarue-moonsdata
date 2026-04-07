@@ -828,7 +828,7 @@ $\varepsilon$: con $\varepsilon=0$ el ruido es exactamente cero.
 \textbf{Estimador de $J^*_\infty$.} El valor $J^*_\infty$ es inaccesible
 directamente; se aproxima mediante un \emph{test set oráculo}: se evalúa la
 pérdida BCE (sin término de regularización) del modelo entrenado sobre un
-conjunto de test de $N_\text{test} = 4000$ puntos i.i.d.\ de make\_moons.
+conjunto de test de $N_\text{test} = 10\,000$ puntos i.i.d.\ de make\_moons (semilla fija $= 999$).
 La hipótesis es que, para $N$ grande, el BCE en test tiende a $J^*_\infty$
 (la pérdida de Bayes en la distribución de datos). El gap se define como:
 \begin{equation}

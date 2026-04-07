@@ -35,3 +35,4 @@ docs/*.pdf
 
 # Figuras generadas
 figuras/
+!figuras/*.png
