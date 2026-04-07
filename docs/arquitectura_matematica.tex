@@ -7,6 +7,8 @@
 \usepackage{geometry}
 \usepackage{hyperref}
 \usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{float}
 \usepackage{xcolor}
 
 \geometry{margin=2.5cm}
@@ -34,10 +36,10 @@
 \title{\textbf{Arquitectura matemática del código}\\[0.5em]
 \large Aplicación del control óptimo de campo medio a clasificación binaria\\
 \normalsize Basado en Daudin \& Delarue, \textit{arXiv:2507.08486}}
-\author{}
-\date{\today}
+\date{}
 
 % ============================================================
+\date{}
 \begin{document}
 \maketitle
 \tableofcontents
@@ -49,9 +51,13 @@
 
 \subsection{Generación del conjunto \texttt{make\_moons}}
 
-Se generan $N = 400$ pares $(x_i, y_i)$ con la función \texttt{make\_moons} de
+Se generan $N$ pares $(x_i, y_i)$ con la función \texttt{make\_moons} de
 \texttt{scikit-learn}. Cada punto pertenece a una de dos clases entrelazadas:
-$y_i \in \{0, 1\}$, con 200 puntos por clase.
+$y_i \in \{0, 1\}$, con $N/2$ puntos por clase.
+
+En primer lugar, se generan coordenadas limpias $x_i \in \R^2$: para $\theta \in [0, \pi]$, 
+$x = (\cos \theta, \sin \theta)$ pertenece a la clase $0$, y $x = (1 - \cos \theta, 1 - \sin \theta - 0.5)$ 
+pertenece a la clase $1$. Esto produce dos lunas entrelazadas.
 
 A las coordenadas limpias se les añade ruido gaussiano independiente en cada
 dimensión:
@@ -71,9 +77,9 @@ $N$ puntos. La transformación es:
 Tras la normalización, cada coordenada tiene media $0$ y varianza $1$. Esto
 estabiliza el entrenamiento al colocar los datos en una escala homogénea.
 
-En adelante se denota $x_0^{(i)} \in \R^2$ al punto normalizado $i$-ésimo y
-$\gamma_0 = \frac{1}{N}\sum_{i=1}^N \delta_{(x_0^{(i)}, y_i)}$ a la medida
-empírica de los datos de entrenamiento.
+En adelante se denota $x_0^{i} \in \R^2$ al punto normalizado $i$-ésimo y
+$\gamma_0 = \frac{1}{N}\sum_{i=1}^N \delta_{(x_0^{i}, y_0^{i})}$ a la medida
+empírica de los datos de entrenamiento. La base de datos es $\{(x_0^{i}, y_0^{i})\}_{i=1}^N$.
 
 % ============================================================
 \section{Arquitectura del modelo}
@@ -215,12 +221,12 @@ al coste de cuatro evaluaciones de $F$ por paso.
 Tras integrar la ODE hasta $t = T$, se obtiene el estado final
 $X_T \in \R^{N \times 2}$. El clasificador lineal calcula el logit:
 \begin{equation}
-  \ell_i = W \cdot X_T^{(i)} + b,
+  \ell_i = W \cdot X_T^{i} + b,
   \qquad W \in \R^{1 \times 2},\; b \in \R,
 \end{equation}
 y la probabilidad predicha es:
 \begin{equation}
-  \hat{p}_i = \Prob(y_i = 1 \mid X_T^{(i)}) = \sigma(\ell_i)
+  \hat{p}_i = \Prob(y_i = 1 \mid X_T^{i}) = \sigma(\ell_i)
   = \frac{1}{1 + e^{-\ell_i}}.
 \end{equation}
 
@@ -264,12 +270,12 @@ logits:
   = -\frac{1}{N}\sum_{i=1}^{N}
     \Bigl[ y_i \log \sigma(\ell_i) + (1 - y_i)\log(1 - \sigma(\ell_i)) \Bigr],
 \end{equation}
-donde $\ell_i = W \cdot X_T^{(i)} + b$ y $\sigma(\ell_i) = (1 + e^{-\ell_i})^{-1}$.
+donde $\ell_i = W \cdot X_T^{i} + b$ y $\sigma(\ell_i) = (1 + e^{-\ell_i})^{-1}$.
 En términos del paper \cite{daudin2025}, este es el coste terminal
 $L(X_T, Y)$ del problema de control óptimo:
 \begin{equation}
-  \min_{\nu_t} \int_0^T \eps \cdot E(\nu_t \mid \nu^\infty)\,dt
-  + \E\bigl[L(X_T, Y)\bigr],
+  \min_{\nu_t} \E\bigl[L(X_T, Y)\bigr] + 
+  \eps \int_0^T \cdot E(\nu_t \mid \nu^\infty)\,dt,
 \end{equation}
 donde $E(\nu_t \mid \nu^\infty)$ es la divergencia KL relativa al prior
 $\nu^\infty$.
@@ -333,9 +339,22 @@ $\ell(a)$ es:
 \begin{equation}
   \abs{a^m}^2 = \norm{a_0^m}^2 + \norm{a_1^m}^2 + (a_2^m)^2 + (b_1^m)^2.
 \end{equation}
-En la implementación, $\mathcal{E}$ se calcula recorriendo todos los
-parámetros escalares $\theta_j$ de \texttt{MeanFieldVelocity} de forma
-unificada.
+El término de energía es la esperanza de $\ell$ bajo la medida empírica
+$\nu_t = \frac{1}{M}\sum_{m=1}^M \delta_{a^m}$:
+\begin{equation*}
+  \mathbb{E}_{\nu_t}[\ell(a)]
+  = \frac{1}{M}\sum_{m=1}^M \ell(a^m)
+  = \frac{1}{M}\sum_{m=1}^M \bigl(c_1|a^m|^4 + c_2|a^m|^2\bigr).
+\end{equation*}
+Como $|a^m|^2 = \sum_j (a^m_j)^2$ descompone en escalares, esta expresión
+es equivalente a aplicar $c_1\theta_j^4 + c_2\theta_j^2$ a cada parámetro
+escalar $\theta_j$ y promediar — de ahí la forma de la ecuación~\eqref{eq:energia}.
+
+\begin{remark}[Discrepancia en el término cuártico]
+  El paper usa $|a|^4 = \bigl(\sum_j\theta_j^2\bigr)^2$; la implementación
+  calcula $\sum_j\theta_j^4$, que omite los términos cruzados $\theta_i^2\theta_j^2$.
+  Ambos son supercoercivos, por lo que las garantías teóricas se preservan.
+\end{remark}
 
 % ============================================================
 \section{Entrenamiento}
@@ -524,9 +543,9 @@ no es necesario implementar el adjunto del integrador manualmente.
 
 \subsection{Hiperparámetros de entrenamiento}
 
-\begin{table}[h]
+\begin{table}[H]
 \centering
-\begin{tabular}{llll}
+\begin{tabularx}{\textwidth}{l l l X}
 \toprule
 Hiperparámetro & Valor & Experimentos & Descripción \\
 \midrule
@@ -547,7 +566,7 @@ $c_2$ & 0.5 & todos & Coeficiente cuadrático del prior \\
 $\sqrt{2\eta_s\varepsilon M_s}$ & variable & B, E, F, G & Escala del ruido precondicionado (por componente) \\
 $\lambda$ & $1$ & B, E, F, G & Cota superior de $M_s$ (evita explosión en dirs.\ planas) \\
 \bottomrule
-\end{tabular}
+\end{tabularx}
 \caption{Hiperparámetros del modelo y el entrenamiento.}
 \end{table}
 
