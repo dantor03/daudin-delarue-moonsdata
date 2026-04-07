@@ -156,7 +156,7 @@ Con $M=64$ neuronas y $d_1=2$:
 \end{align}
 Para $N$ puntos simultáneos $X \in \R^{N \times d_1}$:
 \begin{equation}
-  h = \tanh\!\bigl([\,X,\; t\,\mathbf{1}\,] \, W_1^\top + b_1\bigr)
+  h = \tanh\!\bigl( W_1\, [\,X,\; t\,\mathbf{1}\,]^\top + b_1\bigr)
   \;\in\; \R^{N \times M},
   \qquad
   F(X, t) = \frac{1}{M}\, h\, W_0^\top \;\in\; \R^{N \times d_1}.
@@ -658,9 +658,15 @@ ruido es exactamente cero (Adam estándar).
         $\mathcal{E} \leq 0.15$) para que $\varepsilon=0.5$ no domine la
         escala; las curvas de accuracy muestran la señal bruta (trazo fino)
         y una media móvil de ventana 15 (trazo grueso).
-        Predicción: $J^*$ crece con $\varepsilon$ (la regularización penaliza
-        la solución óptima ``pura''), pero todas las $\varepsilon$ convergen a
-        accuracy $\approx 1.0$.
+        Los casos extremos merecen atención especial: con $\varepsilon = 0.5$
+        (curva morada), la penalización entrópica es tan fuerte que la accuracy
+        no llega a $1.0$ — la regularización impide al modelo ajustarse
+        completamente a los datos. Con $\varepsilon = 0.1$ (curva azul), la
+        pérdida $J$ no llega a cero: el término entrópico mantiene un nivel
+        asintótico elevado, aunque la clasificación sea correcta. En ambos
+        casos, cuanto mayor es $\varepsilon$, mayor es el nivel estacionario
+        de $J^*$ y más ruidosas son las curvas (el ruido pSGLD escala como
+        $\sqrt{\varepsilon}$).
   \item \textbf{B2 — Fronteras de decisión y campo de velocidad:} la fila
         superior muestra la región de decisión $\{x : \hat{p}(x) \geq 0.5\}$
         para cada $\varepsilon$; la fila inferior muestra el quiver plot del
@@ -669,13 +675,13 @@ ruido es exactamente cero (Adam estándar).
         campo más regular.
 \end{itemize}
 
-\textbf{Trade-off empírico $\varepsilon$ vs. $\hat{\mu}_{\text{PL}}$.}
-Empíricamente se observa que $\hat{\mu}_{\text{PL}}$ no crece
-monotónicamente con $\varepsilon$. Esto no contradice el paper: la teoría
-garantiza $\mu > 0$ para todo $\varepsilon > 0$, pero no que $\mu$ sea
-monótono. Con $\varepsilon$ grande, $J^*$ es mayor (más penalización) y el
-exceso de coste $(J - J^*)$ en el denominador de la ratio PL puede crecer
-más que $\norm{\nabla J}^2$, reduciendo $\hat{\mu}$.
+\textbf{Observación sobre $\varepsilon$ grande.}
+Con $\varepsilon = 0.5$ el término de regularización domina la pérdida $J$,
+lo que eleva el nivel asintótico de las curvas y produce oscilaciones
+mayores por el ruido pSGLD (que escala como $\sqrt{\varepsilon}$). Esto no
+compromete la clasificación — la accuracy sigue siendo alta — pero muestra
+que valores de $\varepsilon$ demasiado grandes hacen que la exploración de
+$\nu^*$ sea ruidosa y el nivel estacionario de $J$ se aleje de la BCE pura.
 
 \subsection{Experimento C: Verificación de la condición PL}
 
