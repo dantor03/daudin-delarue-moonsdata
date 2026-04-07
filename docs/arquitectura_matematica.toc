@@ -40,9 +40,9 @@
 \contentsline {section}{\numberline {6}Descripción matemática de los experimentos}{10}{section.6}%
 \contentsline {subsection}{\numberline {6.1}Experimento A: Evolución de $\gamma _t$}{10}{subsection.6.1}%
 \contentsline {subsection}{\numberline {6.2}Experimento B: Efecto del parámetro $\varepsilon $}{10}{subsection.6.2}%
-\contentsline {subsection}{\numberline {6.3}Experimento C: Verificación de la condición PL}{11}{subsection.6.3}%
+\contentsline {subsection}{\numberline {6.3}Experimento C: Verificación de la condición PL}{10}{subsection.6.3}%
 \contentsline {subsection}{\numberline {6.4}Experimento D: Genericidad del minimizador}{11}{subsection.6.4}%
-\contentsline {subsection}{\numberline {6.5}Experimento E: Robustez de $\nu ^*$ (make\_moons)}{11}{subsection.6.5}%
+\contentsline {subsection}{\numberline {6.5}Experimento E: Robustez de $\nu ^*$ (make\_moons)}{12}{subsection.6.5}%
 \contentsline {subsection}{\numberline {6.6}Experimento F: Simetría de $\nu ^*$ en \texttt {make\_circles}}{12}{subsection.6.6}%
-\contentsline {subsection}{\numberline {6.7}Experimento G: Problema de convergencia ($N \to \infty $)}{12}{subsection.6.7}%
-\contentsline {section}{\numberline {7}Resumen de la arquitectura}{13}{section.7}%
+\contentsline {subsection}{\numberline {6.7}Experimento G: Problema de convergencia ($N \to \infty $)}{13}{subsection.6.7}%
+\contentsline {section}{\numberline {7}Resumen de la arquitectura}{14}{section.7}%

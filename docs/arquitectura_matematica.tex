@@ -650,38 +650,28 @@ $\nu^* \propto \exp(-J(\theta)/\varepsilon)$. Con $\varepsilon = 0$ el
 ruido es exactamente cero (Adam estándar).
 
 \textbf{Magnitudes analizadas.}
-
 \begin{itemize}
   \item \textbf{B1 — Curvas de convergencia:} $J$ total, accuracy y
-        $\mathcal{E}$ vs.\ época para cada $\varepsilon$. Los ejes de $J$
-        y $\mathcal{E}$ están recortados ($J \leq 0.5$,
-        $\mathcal{E} \leq 0.15$) para que $\varepsilon=0.5$ no domine la
-        escala; las curvas de accuracy muestran la señal bruta (trazo fino)
-        y una media móvil de ventana 15 (trazo grueso).
-        Los casos extremos merecen atención especial: con $\varepsilon = 0.5$
-        (curva morada), la penalización entrópica es tan fuerte que la accuracy
-        no llega a $1.0$ — la regularización impide al modelo ajustarse
-        completamente a los datos. Con $\varepsilon = 0.1$ (curva azul), la
-        pérdida $J$ no llega a cero: el término entrópico mantiene un nivel
-        asintótico elevado, aunque la clasificación sea correcta. En ambos
-        casos, cuanto mayor es $\varepsilon$, mayor es el nivel estacionario
-        de $J^*$ y más ruidosas son las curvas (el ruido pSGLD escala como
-        $\sqrt{\varepsilon}$).
-  \item \textbf{B2 — Fronteras de decisión y campo de velocidad:} la fila
-        superior muestra la región de decisión $\{x : \hat{p}(x) \geq 0.5\}$
-        para cada $\varepsilon$; la fila inferior muestra el quiver plot del
-        campo $F(x, t=0.5)$ normalizado en dirección (color = magnitud).
-        Predicción: fronteras más suaves para $\varepsilon$ mayor;
-        campo más regular.
+        $\mathcal{E}$ vs.\ época. Los ejes están recortados ($J \leq 0.5$,
+        $\mathcal{E} \leq 0.15$) para que $\varepsilon=0.5$ no domine la escala.
+  \item \textbf{B2 — Fronteras de decisión y campo de velocidad:} región de
+        decisión $\{x : \hat{p}(x) \geq 0.5\}$ y quiver plot de $F(x, t=0.5)$
+        para cada $\varepsilon$. Fronteras más suaves y campo más regular al
+        crecer $\varepsilon$.
 \end{itemize}
 
-\textbf{Observación sobre $\varepsilon$ grande.}
-Con $\varepsilon = 0.5$ el término de regularización domina la pérdida $J$,
-lo que eleva el nivel asintótico de las curvas y produce oscilaciones
-mayores por el ruido pSGLD (que escala como $\sqrt{\varepsilon}$). Esto no
-compromete la clasificación — la accuracy sigue siendo alta — pero muestra
-que valores de $\varepsilon$ demasiado grandes hacen que la exploración de
-$\nu^*$ sea ruidosa y el nivel estacionario de $J$ se aleje de la BCE pura.
+\textbf{Efecto de $\varepsilon$ grande.}
+Con $\varepsilon$ pequeño ($\leq 0.01$), el término entrópico $\varepsilon\cdot\mathcal{E}$
+es un ajuste fino: el modelo minimiza principalmente la BCE.
+Con $\varepsilon = 0.5$, la regularización pesa 50 veces más que con $\varepsilon=0.01$
+y se convierte en un objetivo \emph{competitivo} con la BCE: el campo $F$ necesita
+parámetros grandes para separar las lunas, pero $\varepsilon$ los penaliza
+fuertemente. El resultado es un compromiso — parámetros moderados que no
+separan perfectamente las clases — de ahí que la accuracy no llegue a $1.0$.
+Con $\varepsilon = 0.1$ el efecto es intermedio: la pérdida $J$ no converge a
+cero porque el término entrópico mantiene un nivel asintótico elevado.
+En ambos casos el ruido pSGLD, que escala como $\sqrt{\varepsilon}$, amplifica
+adicionalmente las oscilaciones de las curvas.
 
 \subsection{Experimento C: Verificación de la condición PL}
 
@@ -708,17 +698,33 @@ El estimador conservador de $\mu$ se define como el percentil 10 del ratio
     \frac{G_s}{2\,\delta_s} : s = 1, \ldots, n_\text{epochs}
   \right\}.
 \end{equation}
+Se usa el percentil 10 en lugar de la media o el mínimo porque el ratio
+$G_s/(2\delta_s)$ puede ser ruidoso en las épocas iniciales (cuando $\delta_s$
+es grande y el gradiente aún no ha encontrado la dirección de descenso) y en
+las épocas finales (cuando $\delta_s \approx 0$ y el cociente diverge
+numéricamente). El percentil 10 descarta esos valores extremos y proporciona
+una cota inferior robusta: garantiza que la condición PL se cumple con
+constante $\hat{\mu}$ en al menos el $90\%$ de las épocas.
 
 \textbf{Paneles generados.}
 \begin{itemize}
   \item \textbf{C1 — Log-log:} $G_s$ vs.\ $\delta_s$. Los puntos deben quedar
-        por encima de la recta $G = 2\hat{\mu}\,\delta$.
+        por encima de la recta $G = 2\hat{\mu}\,\delta$. La pendiente $\approx 1$
+        en escala log-log es la firma visual de la condición PL: $\|\nabla J\|^2$
+        crece proporcionalmente a $(J - J^*)$.
   \item \textbf{C2 — Semilog:} $\delta_s$ vs.\ época. Caída exponencial
-        confirma la convergencia predicha por~\eqref{eq:pl}.
+        confirma la convergencia predicha por~\eqref{eq:pl}. Con SGD + lr
+        constante el aplanamiento final refleja convergencia genuina al mínimo,
+        sin el artefacto del cosine annealing que reduciría $\delta_s$
+        artificialmente al llevar $\eta_s \to 0$.
   \item \textbf{C3 — Barras:} $\hat{\mu}_{\text{PL}}$ para cada $\varepsilon$.
-        Confirma $\hat{\mu} > 0$ para todo $\varepsilon > 0$.
+        Confirma $\hat{\mu} > 0$ para todo $\varepsilon > 0$. No se garantiza
+        que $\hat{\mu}$ crezca con $\varepsilon$: valores grandes de $\varepsilon$
+        elevan $J^*$, lo que puede reducir el ratio $G_s / (2\delta_s)$.
   \item \textbf{C4 — Ratio PL:} $G_s / (2\delta_s)$ vs.\ época (escala log),
-        que debe mantenerse $\geq \hat{\mu}$ en todo momento.
+        que debe mantenerse $\geq \hat{\mu}$ en todo momento. Que se cumpla
+        también en las épocas tardías confirma que la PL es una propiedad
+        global del paisaje de $J$, no solo válida al inicio del entrenamiento.
 \end{itemize}
 
 \subsection{Experimento D: Genericidad del minimizador}
@@ -746,6 +752,16 @@ son topológicamente similares entre sí, verificando el Meta-Teorema~1.
 La columna derecha de D2/D3 superpone los contornos $P(y=1|x) = 0.5$
 solo para runs con acc $\geq 0.95$, sobre una nube de puntos de todos los
 datasets.
+
+\textbf{Observación sobre D2.} Empíricamente, la banda de D2 es casi
+invisible: con inicialización fija y datasets distintos, las curvas de
+pérdida son prácticamente idénticas entre sí. Esto se debe a que todos los
+datasets generados por \texttt{make\_moons} con $N=400$ y \texttt{noise}$=0.12$
+son estadísticamente muy similares — distintas realizaciones de la misma
+distribución con suficientes puntos. La trayectoria de optimización queda
+determinada principalmente por $\theta_0$, y la variabilidad específica de
+cada muestra es despreciable. Es la evidencia más directa del Meta-Teorema~1:
+lo que importa es la distribución $\gamma_0$, no la realización concreta.
 
 \subsection{Experimento E: Robustez de $\nu^*$ (make\_moons)}
 
@@ -779,9 +795,20 @@ junto con la media $\pm 1\sigma$ sobre las 10 seeds (figura 1×2):
         de la geometría del problema, no del dataset concreto.
 \end{itemize}
 
-Si el Meta-Teorema~1 se cumple (minimizador único estable), las curvas de
-importancia deben ser cualitativamente similares entre seeds: mismo ``codo''
-pronunciado en los primeros ranks y misma caída.
+\textbf{Relación con el Experimento D y finalidad.}
+El Experimento~D mostró que $J^*$ es robusto entre seeds: distintas condiciones
+de entrenamiento convergen al mismo valor de pérdida. Pero esto no implica
+que la \emph{distribución} de parámetros $\nu^*$ sea la misma — dos modelos
+con igual $J^*$ podrían haber llegado ahí con estructuras internas
+completamente distintas.
+
+El Experimento~E va un paso más allá: verifica que la estructura interna
+de $\nu^*$ es también robusta. Si el Meta-Teorema~1 se cumple (minimizador
+único estable), las curvas de importancia deben ser cualitativamente similares
+entre seeds: mismo ``codo'' pronunciado en los primeros ranks (pocas neuronas
+concentran la mayor parte del peso efectivo) y misma caída. Una banda estrecha
+en ambos paneles confirma que $\nu^*$ no es solo un mínimo con el mismo coste,
+sino genuinamente la \emph{misma} distribución de parámetros.
 
 \subsection{Experimento F: Simetría de $\nu^*$ en \texttt{make\_circles}}
 
@@ -799,15 +826,24 @@ $n_\text{epochs} = 700$, $\varepsilon = 0.01$ y \textbf{pSGLD}
         variable.
 \end{itemize}
 
-\textbf{Figura.} Se muestra un único panel con las curvas de convergencia
-$J \pm 1\sigma$ para F1 y F2 superpuestas. La banda más estrecha de F1 vs.\
-F2 (o viceversa) indica cuál fuente de variabilidad domina la robustez del
-entrenamiento.
+\textbf{Métrica de convergencia.} Con Adam o SGD el optimizador converge a un
+punto y $J^*$ es el valor mínimo alcanzado — un número bien definido.
+Con pSGLD, en cambio, los parámetros \emph{no} convergen a un punto: el ruido
+de Langevin los mantiene explorando permanentemente alrededor del mínimo.
+Reportar el mínimo $J^*$ sería engañoso, porque en cualquier época el valor
+de $J$ puede estar por encima por culpa del ruido, no por falta de convergencia.
+Por eso se usa $\bar{J}_\text{final}$: la media de las últimas 50 épocas,
+que estima el nivel estacionario de la cadena de Markov una vez que ha
+``llegado'' a la región del mínimo y oscila alrededor de él.
 
-\textbf{Métrica de convergencia.} Como pSGLD explora la distribución de Gibbs
-$\nu^* \propto \exp(-J/\varepsilon)$ y no converge puntualmente a $J^*$, el
-nivel de pérdida se reporta como $\bar{J}_\text{final}$, la media de las
-últimas 50 épocas, que estima el nivel estacionario de la cadena de Markov.
+\textbf{Figura y conclusión.} Se muestra un único panel con las curvas de
+convergencia $J \pm 1\sigma$ para F1 (rojo) y F2 (azul) superpuestas.
+Empíricamente, la curva de F1 queda casi siempre por debajo de la de F2:
+fijar la inicialización y variar los datos introduce menos variabilidad
+que fijar los datos y variar la inicialización. Esto indica que, en
+\texttt{make\_circles}, la fuente de variabilidad dominante es la
+inicialización de parámetros $\theta_0$, no el dataset concreto — resultado
+coherente con la observación análoga en D2 para \texttt{make\_moons}.
 
 \subsection{Experimento G: Problema de convergencia ($N \to \infty$)}
 
@@ -816,20 +852,32 @@ de campo medio finito $J^*_N$ converge al valor óptimo del problema de campo
 medio con infinitas partículas $J^*_\infty$ cuando $N \to \infty$, y estimar
 la tasa de convergencia.
 
-\textbf{Marco teórico.} El paper \cite{daudin2025} establece que
-\begin{equation}
-  J^*_N \;\xrightarrow{N\to\infty}\; J^*_\infty.
-\end{equation}
-Una tasa natural esperada por analogía con la ley de los grandes números es
+\textbf{Marco teórico.} El paper \cite{daudin2025} trabaja en el régimen de
+campo medio ($M \to \infty$ neuronas) con distribución inicial \emph{continua}
+$\gamma_0$. El caso discreto con $N$ datos finitos queda fuera del alcance
+del paper: en la Sección~1.6 (punto 3) los autores lo señalan explícitamente
+como extensión futura. La convergencia $J^*_N \to J^*_\infty$ cuando
+$N \to \infty$ es por tanto una \textbf{conjetura} motivada por la intuición
+estadística, no un resultado demostrado. Una tasa natural esperada por
+analogía con la ley de los grandes números sería
 $\text{gap}(N) := J^*_\infty - J^*_N \sim C \cdot N^{-\alpha}$ con
-$\alpha \approx 0.5$. El experimento busca la tasa empírica.
+$\alpha \approx 0.5$. El experimento busca evidencia empírica de esta
+convergencia y estima la tasa $\alpha$.
 
 \textbf{Protocolo.} Se consideran $N \in \{25, 50, 100, 200, 400, 800\}$
-partículas y $\varepsilon \in \{0, 0.01\}$. Para cada combinación $(N, \varepsilon)$
-se realizan 20 entrenamientos independientes (\texttt{n\_seeds}$=20$) con
-700 épocas y \textbf{pSGLD} (\texttt{use\_sgld=True}). Se usa el optimizador
-pSGLD (no Adam) para que el nivel de ruido sea coherente con el parámetro
-$\varepsilon$: con $\varepsilon=0$ el ruido es exactamente cero.
+partículas: una progresión geométrica de razón~2 que cubre dos órdenes de
+magnitud, desde un régimen de datos escasos ($N=25$, apenas suficientes
+para definir las dos lunas) hasta un régimen rico ($N=800$, donde la
+distribución empírica aproxima bien a $\gamma_0$). El valor $N=400$ es el
+estándar del resto de experimentos, lo que permite comparar directamente.
+Se eligen $\varepsilon \in \{0, 0.01\}$ para contrastar el caso sin
+regularización entrópica con el caso de referencia del paper.
+Para cada combinación $(N, \varepsilon)$ se realizan 20 entrenamientos
+independientes (\texttt{n\_seeds}$=20$) con 700 épocas y \textbf{pSGLD}
+(\texttt{use\_sgld=True}). Se usa pSGLD (no Adam) para que el nivel de
+ruido sea coherente con $\varepsilon$: con $\varepsilon=0$ el ruido es
+exactamente cero. Las 20 semillas son necesarias para estimar la media
+y la varianza del gap con fiabilidad estadística.
 
 \textbf{Estimador de $J^*_\infty$.} El valor $J^*_\infty$ es inaccesible
 directamente; se aproxima mediante un \emph{test set oráculo}: se evalúa la
@@ -844,24 +892,30 @@ La hipótesis es que, para $N$ grande, el BCE en test tiende a $J^*_\infty$
 En la práctica, $J^*_\infty$ se aproxima con la media de BCE\_test sobre las
 20 semillas para $N=800$.
 
-\textbf{Figura (G\_convergence\_problem.png).} Layout 1×2:
+\textbf{Figura (G\_convergence\_problem.png).} Layout 1×3:
 \begin{itemize}
-  \item \textbf{G1 — Convergencia de la pérdida en test:} BCE\_test (media
-        $\pm 1\sigma$ sobre 20 seeds) vs.\ $N$ en escala log-log, para
+  \item \textbf{G1 — Convergencia de la pérdida con $N$:} BCE\_test
+        (línea continua) y BCE\_train (línea discontinua), media
+        $\pm 1\sigma$ sobre 20 seeds, vs.\ $N$ en escala log en $x$, para
         $\varepsilon=0$ y $\varepsilon=0.01$. Evidencia visual de que
-        BCE\_test$\,(N) \to J^*_\infty$ al crecer $N$.
-  \item \textbf{G2 — Tasa de convergencia del gap:} $\log\,\text{gap}(N)$ vs.\
-        $\log N$ con ajuste lineal (mínimos cuadrados sobre $N \geq 100$),
-        cuya pendiente es $-\alpha$. Los resultados empíricos son:
+        BCE\_test$(N) \to J^*_\infty$ al crecer $N$. La regularización
+        entrópica ($\varepsilon=0.01$) queda por debajo de $\varepsilon=0$
+        para $N$ pequeño: actúa como prior que compensa la falta de datos.
+  \item \textbf{G2 — Gap de generalización:}
+        $\text{gap}(N) = \text{BCE\_test} - \text{BCE\_train}$ vs.\ $N$.
+        Para $N$ pequeño el modelo sobreajusta (BCE\_train baja pero
+        BCE\_test alta), de ahí el gap grande. Al crecer $N$ el gap se
+        reduce porque la distribución empírica aproxima mejor a $\gamma_0$
+        y hay menos sobreajuste.
+  \item \textbf{G3 — Tasa de convergencia del gap (log-log):}
+        $\log\,\text{gap}(N)$ vs.\ $\log N$ con ajuste lineal
+        (mínimos cuadrados sobre $N \geq 100$), cuya pendiente es $-\alpha$.
+        Se excluyen $N < 100$ porque en el régimen escaso el gap no sigue
+        aún la ley de potencias asintótica. Los resultados empíricos son:
         $\varepsilon=0$: $\alpha \approx 0.78$;
         $\varepsilon=0.01$: $\alpha \approx 0.85$.
         Ambas tasas son más rápidas que la referencia $N^{-0.5}$.
 \end{itemize}
-
-\textbf{Checkpoint incremental.} Para soportar interrupciones (sesiones de
-Colab), los resultados se guardan en \texttt{figuras/G\_results.npz} tras
-completar cada valor de $N$. Al relanzar, las combinaciones $(N,\varepsilon)$
-ya calculadas se omiten automáticamente.
 
 % ============================================================
 \section{Resumen de la arquitectura}
