@@ -106,7 +106,7 @@ La condición PL es **más débil que la convexidad estricta** pero suficiente p
 
 **Meta-Teorema 1** (genericidad): Existe un conjunto abierto y denso $\mathcal{O}$ de condiciones iniciales $\gamma_0$ tal que para todo $\gamma_0 \in \mathcal{O}$, el problema de control tiene un único minimizador **estable**.
 
-**Meta-Teorema 2** (condición PL local): Para $\gamma_0 \in \mathcal{O}$ y $\varepsilon > 0$, la condición PL se cumple localmente cerca del minimizador estable con constante $c > 0$ que no necesita ser grande — cualquier $\varepsilon > 0$ es suficiente.
+**Meta-Teorema 2** (condición PL local): Para $\gamma_0 \in \mathcal{O}$ y $\varepsilon > 0$, la condición PL se cumple localmente cerca del minimizador estable. La constante $\mu > 0$ existe para cualquier $\varepsilon > 0$, por pequeño que sea, pero la PL solo está garantizada en un entorno del óptimo, no en todo el espacio de parámetros.
 
 ---
 
@@ -132,7 +132,7 @@ X_0 ∈ ℝ²  →  [ODE: dX/dt = F(X,t), t ∈ [0,1]]  →  X_T ∈ ℝ²  → 
 | Integrador | RK4, 10 pasos, $dt = 0.1$, error global $O(dt^4) = 10^{-4}$ |
 | Clasificador | $\text{logit} = W \cdot X_T + b$ |
 
-**Parámetros:** $M = 64$ neuronas, $T = 1.0$, `n_steps = 10` → $\approx 450$ parámetros entrenables.
+**Parámetros:** $M = 64$ neuronas, $T = 1.0$, `n_steps = 10` → 387 parámetros entrenables (384 en `MeanFieldVelocity` + 3 en el clasificador lineal).
 
 > **Restricción del espacio de controles.** En el paper, $\nu_t$ es una trayectoria arbitraria sobre $\mathcal{P}(A)$. La implementación concatena $t$ como feature y mantiene $(W_0, W_1, b_1)$ estáticos, lo que restringe el control a la familia donde $a_0^m$ y $a_1^m$ son **constantes en $t$** y solo $a_2^m(t)$ varía linealmente. El campo $F(x,t)$ sí depende genuinamente de $t$, pero el espacio de control es un subconjunto estricto del del paper. Las garantías teóricas se verifican empíricamente en este subespacio.
 
@@ -141,6 +141,8 @@ X_0 ∈ ℝ²  →  [ODE: dX/dt = F(X,t), t ∈ [0,1]]  →  X_T ∈ ℝ²  → 
 $$J(\theta) = \underbrace{\frac{1}{N}\sum_{i=1}^N \text{BCE}(\text{logit}_i, y_i)}_{\text{coste terminal}} + \varepsilon \cdot \underbrace{\frac{1}{N_\theta} \sum_j \left[c_1 \theta_j^4 + c_2 \theta_j^2\right]}_{\text{prior energético: } \mathbb{E}_{\nu}[\ell(a)]}$$
 
 El segundo término es el **término de energía** de la KL: $\mathbb{E}_{\nu_t}[\ell(a)]$. Para parámetros puntuales ($\nu_t = \frac{1}{M}\sum_m \delta_{\theta_m}$), la entropía diferencial $H(\nu_t)$ es técnicamente $-\infty$ respecto a un prior continuo, por lo que solo el término de energía es accesible. Equivale a regularización L4+L2 (*weight decay* polinomial) y actúa como **prior energético** $\nu^\infty$.
+
+> **Nota:** el paper define $|a|^4 = (|a|^2)^2$; la implementación calcula $\sum_j \theta_j^4$ (suma de cuartas potencias escalares, sin términos cruzados). Ambos son supercoercivos, por lo que las garantías teóricas se preservan.
 
 La **entropía** de la KL se implementa en los experimentos B, E, F y G mediante **SGLD** (Stochastic Gradient Langevin Dynamics, ver §3.4).
 
@@ -273,7 +275,7 @@ El ratio $\|\nabla J\|^2 / (2(J - J^*))$ se mantiene positivo y por encima de $\
 | D2 | Aleatoria (0–9) | Fija (seed=2) | Distribución de datos |
 | D3 | Aleatoria ($s$) | Aleatoria ($s$) | Ambas combinadas |
 
-La banda ±1σ de D3 debe ser la más ancha (combina ambas fuentes). Con $\varepsilon=0.01$ la condición PL garantiza $\hat{\mu} > 0$ para todo run; la regularización no reduce necesariamente la varianza entre seeds, sino que garantiza convergencia desde cualquier punto de partida. Las fronteras de D2/D3 son cualitativamente similares entre sí a pesar de provenir de $(γ_0, θ_0)$ completamente distintos — verificación visual del Meta-Teorema 1.
+La banda ±1σ de D3 debe ser la más ancha (combina ambas fuentes). Con $\varepsilon=0.01$ la condición PL garantiza $\hat{\mu} > 0$ cerca del óptimo; la regularización no reduce necesariamente la varianza entre seeds, sino que asegura la existencia de un mínimo global estable. Las fronteras de D2/D3 son cualitativamente similares entre sí a pesar de provenir de $(\gamma_0, \theta_0)$ completamente distintos — verificación visual del Meta-Teorema 1.
 
 ---
 
@@ -361,7 +363,7 @@ donde $J^*_\infty$ se aproxima con la media de BCE$_\text{test}$ para $N=800$.
 | Condición PL: $\|\nabla J\|^2 \geq 2\mu(J-J^*)$ con $\mu > 0$ | Exp. C: ratio PL > 0 en todas las épocas para todo $\varepsilon > 0$ |
 | Convergencia exponencial bajo PL | Exp. C2: decay lineal en escala log con SGD+lr constante (sin artefactos del scheduler) |
 | Genericidad (Meta-Teorema 1): minimizador único para casi toda $\gamma_0$ | Exp. D2/D3: fronteras de decisión cualitativamente similares entre data seeds |
-| $\varepsilon > 0$ garantiza convergencia desde cualquier inicialización | Exp. D1: $\hat{\mu} > 0$ para todo init seed con $\varepsilon=0.01$ |
+| $\varepsilon > 0$ garantiza existencia de minimizador estable cerca del óptimo | Exp. D1: $\hat{\mu} > 0$ para todo init seed con $\varepsilon=0.01$ |
 | $\nu^*$ es robusta a las condiciones de entrenamiento | Exp. E: curvas de importancia $\|a_0^m\|_2$ estables entre seeds en E-1 y E-2 |
 | La geometría del dataset determina la estructura de $\nu^*$ | Exp. F: make_circles (simétrico $SO(2)$) → convergencia y $\nu^*$ isotrópicos; contraste con moons (bimodal) |
 | *Problema abierto*: $J^*_N \to J^*_\infty$ cuando $N \to \infty$ | Exp. G: BCE$_\text{test}$ converge con tasa empírica $\alpha \approx 0.78$–$0.85$ (más rápida que $N^{-1/2}$ clásico) |

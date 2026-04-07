@@ -52,7 +52,7 @@ con $\ell(a) = 0.05|a|^4 + 0.5|a|^2$ (supercoercivo). Para cualquier $\varepsilo
 | Genericidad del minimizador único | Exp. D: fronteras de decisión similares entre data seeds |
 | $\nu^*$ es robusta a las condiciones de entrenamiento | Exp. E: curvas de importancia $\|a_0^m\|_2$ estables entre seeds |
 | La geometría del dataset determina la estructura de $\nu^*$ | Exp. F: make\_circles (simétrico SO(2)) → convergencia isotrópica |
-| *Problema abierto*: $J^*_N \to J^*_\infty$ cuando $N \to \infty$ | Exp. G: BCE$_\text{test}$ converge con tasa emp. $\alpha \approx 1.0$–$1.1$ (más rápida que $N^{-1/2}$ clásico) |
+| *Problema abierto*: $J^*_N \to J^*_\infty$ cuando $N \to \infty$ | Exp. G: BCE$_\text{test}$ converge con tasa emp. $\alpha \approx 0.78$–$0.85$ (más rápida que $N^{-1/2}$ clásico) |
 
 ---
 
@@ -103,7 +103,7 @@ daudin-delarue-moonsdata/
 │   ├── model.py           # MeanFieldVelocity, MeanFieldResNet
 │   ├── train.py           # train() con Adam/SGD/pSGLD, mu_pl_estimate()
 │   ├── plots.py           # plot_decision_boundary()
-│   ├── main.py            # CLI con argparse (--experiment {A,B,C,D,E,F})
+│   ├── main.py            # CLI con argparse (--experiment {A,B,C,D,E,F,G})
 │   └── experiments/
 │       ├── exp_a.py       # Experimento A
 │       ├── exp_b.py       # Experimento B
@@ -112,9 +112,11 @@ daudin-delarue-moonsdata/
 │       ├── exp_e.py       # Experimento E (robustez de ν*)
 │       ├── exp_f.py       # Experimento F (make_circles)
 │       └── exp_g.py       # Experimento G (convergencia N → ∞)
+├── colab_experiment_G.ipynb       # Notebook para ejecutar G en Google Colab (GPU)
 ├── docs/
 │   ├── DOCUMENTACION.md          # Documentación técnica completa
-│   └── arquitectura_matematica.tex  # Derivaciones matemáticas en LaTeX
+│   ├── arquitectura_matematica.tex  # Derivaciones matemáticas en LaTeX
+│   └── arquitectura_matematica.pdf  # PDF compilado
 ├── figuras/               # Figuras generadas (no versionadas)
 ├── pyproject.toml
 ├── requirements.txt
@@ -170,4 +172,3 @@ X_0 ∈ ℝ²  →  [ODE: dX/dt = F(X,t), t ∈ [0,1]]  →  X_T ∈ ℝ²  → 
 - Welling, M. & Teh, Y. W. (2011). *Bayesian Learning via Stochastic Gradient Langevin Dynamics.* ICML.
 - Li, C., Chen, C., Carlson, D., & Carin, L. (2016). *Preconditioned Stochastic Gradient Langevin Dynamics for Deep Neural Networks.* AAAI. [arXiv:1512.07666](https://arxiv.org/abs/1512.07666)
 - Polyak, B.T. (1963). *Gradient methods for minimizing functionals.* USSR Comput. Math. Math. Phys.
-- Villani, C. (2003). *Topics in Optimal Transportation.* AMS Graduate Studies in Mathematics.
