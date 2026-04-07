@@ -326,9 +326,9 @@ Si el Meta-Teorema 1 se cumple (minimizador único estable), las curvas de impor
 
 **Objetivo:** Verificar empíricamente que el valor óptimo del problema de campo medio finito $J^*_N$ converge al valor óptimo con infinitas partículas $J^*_\infty$ cuando $N \to \infty$, y estimar la tasa de convergencia. Optimizador: **pSGLD** (coherente con el rol de $\varepsilon$ como temperatura).
 
-**Marco teórico:** El paper establece $J^*_N \xrightarrow{N\to\infty} J^*_\infty$. La tasa natural esperada por analogía con la ley de los grandes números sería $\text{gap}(N) \sim C \cdot N^{-0.5}$. El experimento estima la tasa empírica.
+**Marco teórico:** El paper trabaja con distribución inicial continua $\gamma_0$ y el límite $M \to \infty$ neuronas. El caso con $N$ datos finitos queda fuera de su alcance: en la Sección 1.6 (punto 3) los autores lo señalan como extensión futura. La convergencia $J^*_N \to J^*_\infty$ es por tanto una **conjetura**, no un resultado demostrado. La tasa natural esperada por analogía con la ley de los grandes números sería $\text{gap}(N) \sim C \cdot N^{-0.5}$. El experimento busca evidencia empírica y estima la tasa $\alpha$.
 
-**Configuración:** $N \in \{25, 50, 100, 200, 400, 800\}$, $\varepsilon \in \{0, 0.01\}$, 20 seeds por combinación, 700 épocas.
+**Configuración:** $N \in \{25, 50, 100, 200, 400, 800\}$ (progresión geométrica de razón 2, desde datos escasos hasta régimen rico; $N=400$ es el valor estándar del resto de experimentos), $\varepsilon \in \{0, 0.01\}$, 20 seeds por combinación, 700 épocas.
 
 **Estimador de $J^*_\infty$:** Se evalúa la BCE (sin regularización) sobre un test set oráculo de $N_\text{test} = 10\,000$ puntos (semilla fija = 999). El gap se define como:
 $$\text{gap}(N) \approx \text{BCE}_\text{test}(N_\text{large}) - \text{BCE}_\text{test}(N)$$
@@ -336,17 +336,17 @@ donde $J^*_\infty$ se aproxima con la media de BCE$_\text{test}$ para $N=800$.
 
 ![Convergencia N→∞](../figuras/G_convergence_problem.png)
 
-**Layout 1×2:**
+**Layout 1×3:**
 
-- **G1 — BCE en test vs $N$:** BCE$_\text{test}$ (media ±1σ sobre 20 seeds) en escala log-log, para $\varepsilon=0$ y $\varepsilon=0.01$. Evidencia visual de que BCE$_\text{test}(N) \to J^*_\infty$ al crecer $N$. Con $\varepsilon=0.01$ el gap a pequeño $N$ es 2-3× menor que con $\varepsilon=0$.
+- **G1 — Convergencia de la pérdida con $N$:** BCE$_\text{test}$ (línea continua) y BCE$_\text{train}$ (línea discontinua), media ±1σ sobre 20 seeds, vs. $N$ en escala log en $x$. La brecha entre ambas es el sobreajuste: grande para $N$ pequeño, pequeña para $N$ grande. Con $\varepsilon=0.01$ la curva de test queda por debajo de la de $\varepsilon=0$ para $N$ pequeño — la regularización actúa como prior que compensa la falta de datos.
 
-- **G2 — Tasa de convergencia del gap:** $\log\,\text{gap}(N)$ vs. $\log N$ con ajuste lineal (mínimos cuadrados sobre $N \geq 100$). La pendiente es $-\alpha$. Resultados empíricos:
+- **G2 — Gap de generalización:** BCE$_\text{test}$ $-$ BCE$_\text{train}$ vs. $N$. Cuantifica el sobreajuste directamente: decrece al crecer $N$ porque la distribución empírica aproxima mejor a $\gamma_0$.
+
+- **G3 — Tasa de convergencia del gap (log-log):** $\log\,\text{gap}(N)$ vs. $\log N$ con ajuste lineal sobre $N \geq 100$ (se excluyen $N < 100$ porque en el régimen escaso el gap no sigue aún la ley de potencias). La pendiente es $-\alpha$. Resultados empíricos:
   - $\varepsilon=0$: $\alpha \approx 0.78$
   - $\varepsilon=0.01$: $\alpha \approx 0.85$
 
-  Ambas tasas son más rápidas que la referencia $N^{-0.5}$, sugiriendo que el campo medio entrópico converge mejor de lo esperado por la analogía con la ley de los grandes números.
-
-**Checkpoint incremental:** Los resultados se guardan en `figuras/G_results.npz` tras completar cada valor de $N$, permitiendo reanudar experimentos interrumpidos (sesiones de Colab).
+  Ambas tasas son más rápidas que la referencia $N^{-0.5}$.
 
 ---
 

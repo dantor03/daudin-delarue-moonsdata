@@ -37,7 +37,7 @@ con $\ell(a) = 0.05|a|^4 + 0.5|a|^2$ (supercoercivo). Para cualquier $\varepsilo
 | **D** | Genericidad del minimizador | Robustez a semillas de init y de datos (Meta-Teorema 1) | `D_genericity.png` |
 | **E** | Robustez de $\nu^*$ (make\_moons) | La distribución $\nu^*$ es estable entre entrenamientos | `E_parameter_robustness.png` |
 | **F** | Convergencia en make\_circles | Robustez de la convergencia a semillas de datos e inicialización en un dataset con simetría $SO(2)$ | `F_circles_parameter_distribution.png` |
-| **G** | Problema de convergencia ($N \to \infty$) | Primera evidencia empírica de $J^*_N \to J^*_\infty$; tasa estimada gap $\propto N^{-\alpha}$ con $\alpha \approx 1$ | `G_convergence_problem.png` |
+| **G** | Problema de convergencia ($N \to \infty$) | Evidencia empírica de la conjetura $J^*_N \to J^*_\infty$ (extensión futura del paper); tasa estimada gap $\propto N^{-\alpha}$ con $\alpha \approx 0.78$–$0.85$ | `G_convergence_problem.png` |
 
 ---
 
@@ -52,7 +52,7 @@ con $\ell(a) = 0.05|a|^4 + 0.5|a|^2$ (supercoercivo). Para cualquier $\varepsilo
 | Genericidad del minimizador único | Exp. D: fronteras de decisión similares entre data seeds |
 | $\nu^*$ es robusta a las condiciones de entrenamiento | Exp. E: curvas de importancia $\|a_0^m\|_2$ estables entre seeds |
 | La convergencia es robusta a semillas de datos e inicialización | Exp. F: make\_circles — bandas de pérdida estrechas tanto en F1 (datos variables) como en F2 (init variable) |
-| *Problema abierto*: $J^*_N \to J^*_\infty$ cuando $N \to \infty$ | Exp. G: BCE$_\text{test}$ converge con tasa emp. $\alpha \approx 0.78$–$0.85$ (más rápida que $N^{-1/2}$ clásico) |
+| *Conjetura* (extensión futura del paper): $J^*_N \to J^*_\infty$ cuando $N \to \infty$ | Exp. G: BCE$_\text{test}$ converge con tasa emp. $\alpha \approx 0.78$–$0.85$ (más rápida que $N^{-1/2}$ clásico) |
 
 ---
 
