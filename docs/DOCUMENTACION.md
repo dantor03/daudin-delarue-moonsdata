@@ -302,27 +302,23 @@ Si el Meta-Teorema 1 se cumple (minimizador único estable), las curvas de impor
 
 ## 9. Experimento F — Convergencia en make\_circles
 
-**Dataset:** `make_circles(n=400, noise=0.08, factor=0.5)` — dos círculos concéntricos con **simetría rotacional completa $SO(2)$**: el dataset es invariante (en distribución) bajo rotaciones del plano $\mathbb{R}^2$. Optimizador: **SGLD** en ambos sub-experimentos.
+**Dataset:** `make_circles(n=400, noise=0.08, factor=0.5)` — dos círculos concéntricos con simetría rotacional $SO(2)$. Optimizador: **pSGLD** en ambos sub-experimentos.
 
-**Objetivo:** Estudiar si la convergencia en make_circles es robusta a semillas de datos e inicialización, y comparar la dinámica de entrenamiento con make_moons.
+**Objetivo:** Verificar que la convergencia en make_circles es robusta tanto a la semilla de datos como a la inicialización de parámetros.
 
 **Configuración:** $\varepsilon = 0.01$, $n = 10$ seeds, 700 épocas cada run.
 
 - **F1:** `init_seed=4` fija, `data_seed ∈ {0,...,9}` — 10 instancias distintas de make_circles.
 - **F2:** `data_seed=42` fijo, `init_seed ∈ {0,...,9}` — 10 inicializaciones distintas sobre el mismo make_circles.
 
-![Distribución de ν* en make_circles](../figuras/F_circles_parameter_distribution.png)
+![Convergencia en make_circles](../figuras/F_circles_parameter_distribution.png)
 
 **Panel único:** Curvas de pérdida de F1 (rojo) y F2 (azul) superpuestas.
 - Curvas individuales por seed en trazo fino y transparente (alpha=0.25).
 - Media sobre seeds en trazo grueso + banda ±1σ.
-- Leyenda con $\bar{J}_\text{final}$ (media de las últimas 50 épocas) ± std para cada sub-experimento. Se usa $\bar{J}_\text{final}$ en lugar de $J^*$ porque pSGLD explora la distribución estacionaria $\nu^* \propto \exp(-J/\varepsilon)$ y no converge puntualmente al mínimo.
+- Leyenda con $\bar{J}_\text{final}$ (media de las últimas 50 épocas) ± std. Se usa $\bar{J}_\text{final}$ en lugar de $J^*$ porque pSGLD explora la distribución estacionaria $\nu^* \propto \exp(-J/\varepsilon)$ y no converge puntualmente al mínimo.
 
-**Motivación teórica (predicción sobre $\nu^*$):** Si el aprendizaje respeta la simetría $SO(2)$ de make_circles, la distribución óptima $\nu^*$ también debería ser isotrópica. En particular, los pesos de entrada $a_1^m \in \mathbb{R}^2$ deberían distribuirse uniformemente en $S^1$ — en contraste con la distribución bimodal observada en make_moons, donde las dos lunas tienen una dirección preferida. Esta predicción es cuantificable mediante la longitud resultante media:
-
-$$\bar{R} = \left|\frac{1}{M}\sum_{m=1}^M e^{i\theta^m}\right| \in [0,1], \quad \theta^m = \arctan2(a_1^m[1],\, a_1^m[0])$$
-
-$\bar{R} \approx 0$ indica distribución isotrópica; $\bar{R} \approx 1$ indica concentración en una dirección. Para $M=64$ vectores perfectamente uniformes, $\mathbb{E}[\bar{R}] = 1/\sqrt{64} = 0.125$ es el nivel de ruido estadístico de referencia.
+**Interpretación:** Bandas estrechas en F1 y F2 indican que la convergencia es robusta tanto a variaciones del dataset como de la inicialización. La comparación F1 vs F2 permite identificar cuál fuente de aleatoriedad introduce más variabilidad.
 
 ---
 
@@ -365,7 +361,7 @@ donde $J^*_\infty$ se aproxima con la media de BCE$_\text{test}$ para $N=800$.
 | Genericidad (Meta-Teorema 1): minimizador único para casi toda $\gamma_0$ | Exp. D2/D3: fronteras de decisión cualitativamente similares entre data seeds |
 | $\varepsilon > 0$ garantiza existencia de minimizador estable cerca del óptimo | Exp. D1: $\hat{\mu} > 0$ para todo init seed con $\varepsilon=0.01$ |
 | $\nu^*$ es robusta a las condiciones de entrenamiento | Exp. E: curvas de importancia $\|a_0^m\|_2$ estables entre seeds en E-1 y E-2 |
-| La geometría del dataset determina la estructura de $\nu^*$ | Exp. F: make_circles (simétrico $SO(2)$) → convergencia y $\nu^*$ isotrópicos; contraste con moons (bimodal) |
+| La convergencia es robusta a semillas de datos e inicialización | Exp. F: make\_circles — bandas de pérdida estrechas en F1 (datos variables) y F2 (init variable) |
 | *Problema abierto*: $J^*_N \to J^*_\infty$ cuando $N \to \infty$ | Exp. G: BCE$_\text{test}$ converge con tasa empírica $\alpha \approx 0.78$–$0.85$ (más rápida que $N^{-1/2}$ clásico) |
 
 La contribución más importante del paper es la **robustez del resultado**: $\varepsilon$ no necesita ser grande para garantizar la condición PL y la convergencia exponencial. Con cualquier $\varepsilon > 0$, por pequeño que sea, el descenso en gradiente converge exponencialmente al mínimo global — sin convexidad.
