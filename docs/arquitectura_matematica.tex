@@ -414,7 +414,7 @@ geométrico real del gradient flow.
 \label{sec:sgld}
 
 Para los Experimentos B, E y F, se usa \textbf{pSGLD} (\emph{preconditioned
-Stochastic Gradient Langevin Dynamics}, Li et al.~\cite{li2016psgld}):
+Stochastic Gradient Langevin Dynamics}, Kim et al.~\cite{li2016psgld}):
 una extensión de SGLD que utiliza \textbf{Adam} como optimizador base y
 acopla el ruido de Langevin al precondicionador de Adam.
 
@@ -457,7 +457,7 @@ y el ruido $\sqrt{2\eta\varepsilon \cdot 10^8}$ explotaría incluso para
 $\varepsilon$ pequeño. La cota $M_s \leq 1$ corresponde a usar un
 hiperparámetro de estabilización $\lambda \geq 1$ (distinto del $\delta$
 de Adam) en la fórmula $1/(\sqrt{\hat{v}} + \lambda)$, como sugieren
-Li et al.\ en su implementación original. Con esta cota, el ruido
+Kim et al.\ en su implementación original. Con esta cota, el ruido
 satisface $\|\text{ruido}\| \leq \sqrt{2\eta_s\varepsilon}$: nunca supera
 el nivel isotrópico de SGLD estándar.
 
@@ -642,7 +642,7 @@ velocidad.
 
 \textbf{Protocolo.} Se entrena un modelo para cada
 $\varepsilon \in \{0, 10^{-3}, 10^{-2}, 0.1, 0.5\}$ con \textbf{pSGLD}
-(\texttt{use\_sgld=True}, Li et al.~\cite{li2016psgld}), manteniendo la
+(\texttt{use\_sgld=True}, Kim et al.~\cite{li2016psgld}), manteniendo la
 misma semilla de inicialización. El uso de pSGLD es coherente con el rol
 de $\varepsilon$ como temperatura entrópica: el ruido precondicionado
 $\sqrt{2\eta_s\varepsilon M_s}\,\xi$ hace que los parámetros exploren
@@ -956,11 +956,9 @@ Gradient clip & $G_{\max}=5$ (todos los modos) \\
   in \textit{International Conference on Machine Learning (ICML)}, 2011.
 
 \bibitem{li2016psgld}
-  C.~Li, C.~Chen, D.~Carlson, and L.~Carin,
-  \textit{Preconditioned Stochastic Gradient Langevin Dynamics for Deep
-  Neural Networks},
-  in \textit{AAAI Conference on Artificial Intelligence}, 2016.
-  \url{https://arxiv.org/abs/1512.07666}
+  S.~Kim, Q.~Song, and F.~Liang,
+  \textit{Stochastic Gradient Langevin Dynamics Algorithms with Adaptive Drifts},
+  arXiv:2009.09535, 2020.
 
 \bibitem{kingma2015adam}
   D.~P.~Kingma and J.~Ba,
