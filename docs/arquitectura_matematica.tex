@@ -915,6 +915,22 @@ En la práctica, $J^*_\infty$ se aproxima con la media de BCE\_test sobre las
         $\varepsilon=0$: $\alpha \approx 0.78$;
         $\varepsilon=0.01$: $\alpha \approx 0.85$.
         Ambas tasas son más rápidas que la referencia $N^{-0.5}$.
+
+        \textit{Cálculo de $\alpha$.} Se asume que el gap sigue una ley de
+        potencias $\text{gap}(N) \propto N^{-\alpha}$. Tomando logaritmos,
+        $\log\,\text{gap} = -\alpha\log N + c$, que es una recta en escala
+        log-log. El exponente $\alpha$ se estima como la pendiente (con signo
+        cambiado) de la regresión lineal por mínimos cuadrados ordinarios sobre
+        los pares $(\log N,\,\log\,\text{gap})$ con $N \geq 100$.
+
+        \textit{Referencia clásica $N^{-1/2}$.} La tasa $\alpha = 0.5$
+        corresponde a la velocidad de convergencia de la medida empírica
+        $\hat{\gamma}_N$ hacia la medida continua $\gamma_0$ garantizada por el
+        \textbf{teorema de Glivenko-Cantelli}: bajo hipótesis
+        estándar de momentos, la distancia de Wasserstein (o la norma supremo
+        del proceso empírico) entre $\hat{\gamma}_N$ y $\gamma_0$ es
+        $O(N^{-1/2})$. Esta cota se usa aquí como referencia natural para
+        juzgar si la regularización entrópica acelera o no la convergencia.
 \end{itemize}
 
 % ============================================================
@@ -922,7 +938,7 @@ En la práctica, $J^*_\infty$ se aproxima con la media de BCE\_test sobre las
 \label{sec:resumen}
 
 \begin{center}
-\begin{tabular}{ll}
+\begin{tabular}{lp{10.5cm}}
 \toprule
 Bloque & Descripción \\
 \midrule
@@ -935,7 +951,7 @@ Total parámetros & 387 \\
 Pérdida & $J = \text{BCE} + \varepsilon \cdot \mathcal{E}$,\; $\varepsilon = 0.01$ \\
 Optimizador (A, D) & Adam \cite{kingma2015adam},\; $\alpha_0=0.01$,\; cosine annealing \\
 Optimizador (C) & SGD,\; $\alpha=0.01$ constante,\; sin ruido \\
-Optimizador (B, E, F, G) & pSGLD \cite{li2016psgld},\; $\theta \leftarrow \text{Adam}(\theta,\nabla J) + \sqrt{2\eta\varepsilon M}\,\xi$,\; $M = \min(1/\sqrt{\hat{v}}+\delta, 1)$ \\
+Optimizador (B, E, F, G) & pSGLD \cite{li2016psgld},\; $\theta \leftarrow \text{Adam}(\theta,\nabla J) + \sqrt{2\eta\varepsilon M}\,\xi$,\; $M = \min(1/\sqrt{\hat{v}}+\delta,\,1)$ \\
 Gradient clip & $G_{\max}=5$ (todos los modos) \\
 \bottomrule
 \end{tabular}
