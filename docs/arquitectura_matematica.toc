@@ -29,8 +29,8 @@
 \contentsline {paragraph}{Corrección de sesgo.}{7}{section*.12}%
 \contentsline {paragraph}{Cota superior en $M_s$ y justificación.}{7}{section*.13}%
 \contentsline {paragraph}{Necesidad del acoplamiento ruido--precondicionador.}{7}{section*.14}%
-\contentsline {paragraph}{Resultado.}{7}{section*.15}%
-\contentsline {subsection}{\numberline {4.4}Cosine Annealing}{7}{subsection.4.4}%
+\contentsline {paragraph}{Resultado y limitación respecto al paper.}{7}{section*.15}%
+\contentsline {subsection}{\numberline {4.4}Cosine Annealing}{8}{subsection.4.4}%
 \contentsline {subsection}{\numberline {4.5}Gradient Clipping}{8}{subsection.4.5}%
 \contentsline {subsection}{\numberline {4.6}Retropropagación}{8}{subsection.4.6}%
 \contentsline {subsection}{\numberline {4.7}Hiperparámetros de entrenamiento}{9}{subsection.4.7}%

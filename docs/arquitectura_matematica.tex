@@ -464,22 +464,46 @@ el nivel isotrópico de SGLD estándar.
 \paragraph{Necesidad del acoplamiento ruido--precondicionador.}
 Inyectar ruido isotrópico ($\sigma$ constante para todos los $j$) después
 del paso de Adam desacopla la parte estocástica del precondicionador y
-destruye la distribución estacionaria: la cadena de Markov ya \emph{no}
-converge a $\nu^* \propto \exp(-J(\theta)/\varepsilon)$. Con el acoplamiento
+destruye la distribución estacionaria. Con el acoplamiento
 de~\eqref{eq:psgld}--\eqref{eq:precond}, la SDE efectiva es la Langevin
 precondicionada
 \begin{equation}
   d\theta = -\nabla J\,dt + \sqrt{2\varepsilon M}\,dW,
 \end{equation}
-cuya medida estacionaria es $\nu^* \propto \exp(-J(\theta)/\varepsilon)$
+cuya medida estacionaria es $\tilde{\nu} \propto \exp(-J(\theta)/\varepsilon)$
 bajo el precondicionador $M$ (resultado estándar de difusiones precondicionadas).
 
-\paragraph{Resultado.}
-El ruido precondicionado implementa el \textbf{término de entropía}
-$-H(\nu_t)$ de la KL, haciendo que los parámetros exploren la distribución
-de Gibbs en lugar de colapsar al MAP. El término energético $\mathcal{E}$
-en~\eqref{eq:energia} sigue actuando como el prior $\nu^\infty$.
-Con $\varepsilon = 0$ el ruido es exactamente cero (Adam estándar).
+\paragraph{Resultado y limitación respecto al paper.}
+El ruido de Langevin hace que los parámetros exploren $\tilde{\nu}$ en lugar
+de colapsar al MAP, aproximando así el término de entropía $-H(\nu_t)$ de la
+KL. El término energético $\mathcal{E}$ en~\eqref{eq:energia} actúa como el
+prior $\nu^\infty$. Con $\varepsilon = 0$ el ruido es exactamente cero (Adam
+estándar).
+
+Sin embargo, $\tilde{\nu}$ \textbf{no coincide} con la medida de control
+óptima $\nu^*_t$ del paper. Según la condición de primer orden
+(principio de Pontryagin), $\nu^*_t$ tiene la forma
+\begin{equation}
+  \nu^*_t(a) \propto \exp\!\Bigl(-\ell(a)
+  - \tfrac{1}{\varepsilon}\int b(x,a)\cdot\nabla_x u_t(x,y)\,d\gamma_t(x,y)\Bigr),
+\end{equation}
+donde $u_t$ es el estado adjunto que satisface la ecuación backward acoplada
+con la ecuación forward de $\gamma_t$. El potencial de $\tilde{\nu}$ es
+$J(\theta)/\varepsilon$ (la pérdida total evaluada en los parámetros), mientras
+que el de $\nu^*_t$ involucra la interacción entre el campo $b(x,a)$ y el
+gradiente del adjunto $\nabla_x u_t$: una cantidad que requiere resolver el
+sistema forward-backward completo y que la implementación actual no computa.
+
+\textit{Uso de pSGLD.} A pesar de esta brecha,
+pSGLD es la elección más coherente disponible.
+La alternativa directa ---Adam sin ruido con $\varepsilon > 0$--- reduce
+$\varepsilon$ a un simple \emph{weight decay} polinomial, perdiendo por
+completo el rol de temperatura entrópica que tiene en el paper.
+pSGLD, en cambio, hace que $\varepsilon$ controle simultáneamente la
+regularización (vía $\mathcal{E}$) y la exploración del espacio de parámetros
+(vía el ruido de Langevin), que es precisamente el doble rol que le asigna
+el paper. La distribución $\tilde{\nu}$ es por tanto la mejor aproximación
+a $\nu^*_t$ accesible sin resolver el sistema forward-backward.
 
 La tasa de aprendizaje sigue cosine annealing ($\eta_s \to 0$), satisfaciendo
 las condiciones de Robbins-Monro: $\sum_s \eta_s = \infty$,
@@ -641,13 +665,15 @@ entrópica sobre la convergencia, las fronteras de decisión y el campo de
 velocidad.
 
 \textbf{Protocolo.} Se entrena un modelo para cada
-$\varepsilon \in \{0, 10^{-3}, 10^{-2}, 0.1, 0.5\}$ con \textbf{pSGLD}
+$\varepsilon \in \{0,\; 10^{-3},\; 10^{-2},\; 0.1,\; 0.5\}$
+con \textbf{pSGLD}
 (\texttt{use\_sgld=True}, Kim et al.~\cite{li2016psgld}), manteniendo la
 misma semilla de inicialización. El uso de pSGLD es coherente con el rol
 de $\varepsilon$ como temperatura entrópica: el ruido precondicionado
 $\sqrt{2\eta_s\varepsilon M_s}\,\xi$ hace que los parámetros exploren
-$\nu^* \propto \exp(-J(\theta)/\varepsilon)$. Con $\varepsilon = 0$ el
-ruido es exactamente cero (Adam estándar).
+$\tilde{\nu} \propto \exp(-J(\theta)/\varepsilon)$, aproximación de la medida
+óptima $\nu^*_t$ del paper (véase Sección~\ref{sec:sgld}).
+Con $\varepsilon = 0$ el ruido es exactamente cero (Adam estándar).
 
 \textbf{Magnitudes analizadas.}
 \begin{itemize}
@@ -765,13 +791,14 @@ lo que importa es la distribución $\gamma_0$, no la realización concreta.
 
 \subsection{Experimento E: Robustez de $\nu^*$ (make\_moons)}
 
-\textbf{Objetivo.} Verificar que la distribución óptima de parámetros $\nu^*$
-es robusta a distintas condiciones de entrenamiento: distintas inicializaciones
-y distintos datasets deben producir distribuciones $\nu^*$ similares.
+\textbf{Objetivo.} Verificar que la distribución de parámetros aprendida por
+pSGLD ---aproximación empírica de la medida óptima $\nu^*_t$ del paper--- es
+robusta a distintas condiciones de entrenamiento: distintas inicializaciones
+y distintos datasets deben producir distribuciones similares.
 
 \textbf{Protocolo.} Dos sub-experimentos con $n_\text{seeds} = 10$,
 $\varepsilon = 0.01$, 500 épocas y \textbf{pSGLD} (\texttt{use\_sgld=True},
-para explorar la distribución de Gibbs $\nu^*$ en lugar del MAP):
+para explorar $\tilde{\nu} \propto \exp(-J(\theta)/\varepsilon)$ en lugar del MAP):
 \begin{itemize}
   \item \textbf{E-1:} \texttt{data\_seed}$=42$ fijo, \texttt{init\_seed}
         $\in \{0,\ldots,9\}$ variable.
