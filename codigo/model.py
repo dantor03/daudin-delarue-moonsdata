@@ -202,11 +202,12 @@ class MeanFieldResNet(nn.Module):
     """
 
     def __init__(self, d1: int = 2, M: int = 64, T: float = 1.0,
-                 n_steps: int = 10):
+                 n_steps: int = 10, task: str = 'classification'):
         super().__init__()
         self.velocity   = MeanFieldVelocity(d1=d1, M=M)
         self.classifier = nn.Linear(d1, 1)
         self.T, self.n_steps, self.d1 = T, n_steps, d1
+        self.task = task   # 'classification' (BCE) | 'regression' (MSE)
 
         # Inicialización pequeña del clasificador: para que al inicio
         # el logit sea ≈ 0 y la pérdida BCE empiece cerca de log(2) ≈ 0.693
@@ -324,7 +325,10 @@ class MeanFieldResNet(nn.Module):
             loss_term  : BCE puro (float) — componente de clasificación
             loss_reg   : penalización entrópica (float) — componente de regularización
         """
-        logit     = self.forward(x0)
-        loss_term = nn.BCEWithLogitsLoss()(logit, y)
+        pred      = self.forward(x0)
+        if self.task == 'regression':
+            loss_term = nn.MSELoss()(pred, y)
+        else:
+            loss_term = nn.BCEWithLogitsLoss()(pred, y)
         loss_reg  = self.velocity.entropic_penalty()
         return loss_term + epsilon * loss_reg, loss_term.item(), loss_reg.item()

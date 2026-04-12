@@ -5,13 +5,21 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
+from .metrics import (
+    particles_live, compute_mmd_sigma,
+    mmd_loss_train, sinkhorn_loss,
+)
+
 
 # =============================================================================
 # § 4  BUCLE DE ENTRENAMIENTO
 # =============================================================================
 def train(model, X, y, epsilon,
           lr: float = 0.01, n_epochs: int = 800, verbose: bool = True,
-          use_sgd: bool = False, use_sgld: bool = False):
+          use_sgd: bool = False, use_sgld: bool = False,
+          use_mmd: bool = False, use_sinkhorn: bool = False,
+          prior_samples=None, mmd_sigma: float = None,
+          sinkhorn_blur: float = 0.05):
     """
     Bucle de entrenamiento.  Tres modos de optimizador:
 
@@ -73,20 +81,74 @@ def train(model, X, y, epsilon,
         n_epochs : número de épocas
         verbose  : imprime progreso cada 200 épocas
         use_sgd  : SGD + lr constante, sin ruido (exp_c)
-        use_sgld : SGD + cosine annealing + ruido Langevin (exp_b, E, F)
+        use_sgld    : pSGLD — Adam + ruido Langevin precondicionado (exp_b, E, F)
+        use_mmd     : Adam + regularizador MMD²(partículas, prior_samples).
+                      Reemplaza la penalización L4+L2 por la distancia MMD
+                      entre las partículas actuales y muestras fijas del prior
+                      ν^∞.  Entrenamiento determinístico (sin ruido Langevin).
+                      Requiere prior_samples ≠ None.
+        use_sinkhorn: Adam + divergencia de Sinkhorn(partículas, prior_samples).
+                      Similar a use_mmd pero con transporte óptimo entrópico
+                      como regularizador.  Más sensible a la geometría del
+                      espacio de parámetros que MMD.
+                      Requiere prior_samples ≠ None.
+        prior_samples: (N, d) tensor — muestras de ν^∞ precomputadas.
+                      Generadas con sample_prior_langevin() en metrics.py.
+                      Se mueven automáticamente al dispositivo del modelo.
+        mmd_sigma   : ancho de banda del kernel MMD (None → heurística de la
+                      mediana calculada una vez antes del entrenamiento).
+        sinkhorn_blur: regularización del OT en Sinkhorn (default 0.05).
 
     Returns:
         hist : dict con listas de métricas + 'J_star'
     """
-    if use_sgld:
-        opt = optim.Adam(model.parameters(), lr=lr)
-        sch = optim.lr_scheduler.CosineAnnealingLR(opt, T_max=n_epochs)
-    elif use_sgd:
+    # ── Validación de argumentos ──────────────────────────────────────────────
+    if (use_mmd or use_sinkhorn) and prior_samples is None:
+        raise ValueError("use_mmd y use_sinkhorn requieren prior_samples != None.")
+    if sum([use_sgld, use_sgd, use_mmd, use_sinkhorn]) > 1:
+        raise ValueError("Solo un modo puede estar activo a la vez.")
+
+    # ── Optimizador y scheduler ───────────────────────────────────────────────
+    if use_sgd:
         opt = optim.SGD(model.parameters(), lr=lr)
         sch = None
     else:
+        # Adam + cosine annealing para todos los demás modos
         opt = optim.Adam(model.parameters(), lr=lr)
         sch = optim.lr_scheduler.CosineAnnealingLR(opt, T_max=n_epochs)
+
+    # ── Setup previo al bucle (MMD y Sinkhorn) ────────────────────────────────
+    prior_dev   = None   # prior_samples en el dispositivo del modelo
+    _sigma      = None   # ancho de banda MMD (fijo durante training)
+    _kyy_mean   = None   # E[k(y,y')] precomputado (constante)
+    _W_yy       = None   # OT_blur(Y,Y) precomputado (constante)
+
+    if use_mmd or use_sinkhorn:
+        prior_dev = prior_samples.to(X.device).float()
+
+    if use_mmd:
+        # Sigma: heurística de la mediana, calculada una vez
+        _sigma = mmd_sigma if mmd_sigma is not None else compute_mmd_sigma(
+            particles_live(model).detach(), prior_dev
+        )
+        # E[k(y,y')]: constante durante todo el entrenamiento
+        with torch.no_grad():
+            def _K(A, B, s):
+                d = A.unsqueeze(1) - B.unsqueeze(0)
+                return torch.exp(-(d ** 2).sum(-1) / (2.0 * s ** 2))
+            Kyy = _K(prior_dev, prior_dev, _sigma)
+            _kyy_mean = float(Kyy.sum() / (prior_dev.shape[0] ** 2))
+        if verbose:
+            print(f"    [MMD]  σ = {_sigma:.4f}  |  E[k(y,y')] = {_kyy_mean:.4f}")
+
+    if use_sinkhorn:
+        # W_yy: OT_blur(prior, prior), constante durante el entrenamiento
+        with torch.no_grad():
+            _W_yy = float(sinkhorn_loss(
+                prior_dev, prior_dev, blur=sinkhorn_blur, n_iter=50
+            ))
+        if verbose:
+            print(f"    [Sinkhorn]  blur = {sinkhorn_blur}  |  W_yy = {_W_yy:.4e}")
 
     hist = {'loss': [], 'loss_term': [], 'loss_reg': [],
             'grad_norm2': [], 'pl_ratio': [], 'accuracy': []}
@@ -95,7 +157,27 @@ def train(model, X, y, epsilon,
     for ep in range(n_epochs):
         model.train()
         opt.zero_grad()
-        loss, lt, lr_val = model.compute_loss(X, y, epsilon)
+
+        # ── Cálculo de la pérdida según el modo activo ────────────────────────
+        if use_mmd:
+            # BCE (sin L4+L2) + ε·MMD²(partículas, prior)
+            loss_bce, lt, _ = model.compute_loss(X, y, 0.0)
+            pts     = particles_live(model)
+            reg     = mmd_loss_train(pts, prior_dev, _sigma, _kyy_mean)
+            loss    = loss_bce + epsilon * reg
+            lr_val  = reg.item()
+        elif use_sinkhorn:
+            # BCE (sin L4+L2) + ε·Sinkhorn(partículas, prior)
+            loss_bce, lt, _ = model.compute_loss(X, y, 0.0)
+            pts     = particles_live(model)
+            reg     = sinkhorn_loss(pts, prior_dev,
+                                    blur=sinkhorn_blur, n_iter=50, W_yy=_W_yy)
+            loss    = loss_bce + epsilon * reg
+            lr_val  = reg.item()
+        else:
+            # pSGLD / Adam / SGD: BCE + ε·L4+L2
+            loss, lt, lr_val = model.compute_loss(X, y, epsilon)
+
         loss.backward()
 
         # ‖∇J‖² se calcula DESPUÉS de backward() pero ANTES de clip y step.
@@ -173,7 +255,13 @@ def train(model, X, y, epsilon,
         pl = gn2 / (2.0 * excess) if excess > 1e-9 else float('nan')
 
         with torch.no_grad():
-            acc = ((model(X) > 0).float() == y).float().mean().item()
+            pred = model(X)
+            if getattr(model, 'task', 'classification') == 'regression':
+                ss_res = ((pred - y) ** 2).sum()
+                ss_tot = ((y - y.mean()) ** 2).sum().clamp(min=1e-8)
+                acc = float(1.0 - ss_res / ss_tot)   # R²
+            else:
+                acc = ((pred > 0).float() == y).float().mean().item()
 
         hist['loss'].append(lv)
         hist['loss_term'].append(lt)

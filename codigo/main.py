@@ -16,6 +16,7 @@ from .config import DEVICE, OUTPUT_DIR
 from .experiments import (
     experiment_A, experiment_B, experiment_C,
     experiment_D, experiment_E_robustness, experiment_F, experiment_G,
+    experiment_H, experiment_I, experiment_J, experiment_K,
 )
 
 
@@ -69,6 +70,22 @@ def main(experiment: str = 'all', epochs: int | None = None) -> None:
     if run_all or experiment == 'G':
         experiment_G(n_seeds=20, n_epochs=epochs or 700)
 
+    # H — Diagnóstico pSGLD: ¿muestrea realmente de ν*?
+    if run_all or experiment == 'H':
+        experiment_H(n_epochs=epochs or 800)
+
+    # I — MMD y Sinkhorn como regularizadores vs pSGLD
+    if run_all or experiment == 'I':
+        experiment_I(n_epochs=epochs or 700)
+
+    # J — Regresión en datos reales: California Housing
+    if run_all or experiment == 'J':
+        experiment_J(n_epochs=epochs or 700)
+
+    # K — Barrido de ε para regresión (California Housing)
+    if run_all or experiment == 'K':
+        experiment_K(n_epochs=epochs or 500)
+
     print("\n" + "=" * 65)
     print("  TODOS LOS EXPERIMENTOS COMPLETADOS")
     print()
@@ -82,6 +99,10 @@ def main(experiment: str = 'all', epochs: int | None = None) -> None:
         'E_parameter_robustness.png',
         'F_circles_parameter_distribution.png',
         'G_convergence_problem.png',
+        'H_psgld_diagnostic.png',
+        'I_regularizer_comparison.png',
+        'J_california_regression.png',
+        'K_epsilon_sweep.png',
     ]:
         print(f"    {OUTPUT_DIR}/{fname}")
     print("=" * 65)
@@ -93,7 +114,7 @@ def _parse_args():
     )
     parser.add_argument(
         '--experiment', '-e',
-        choices=['all', 'A', 'B', 'C', 'D', 'E', 'F', 'G'],
+        choices=['all', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K'],
         default='all',
         help='Experimento a ejecutar (por defecto: all)',
     )

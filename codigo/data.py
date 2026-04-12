@@ -1,6 +1,8 @@
 import numpy as np
 import torch
 from sklearn.datasets import make_moons, make_circles
+from sklearn.decomposition import PCA
+from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 
 from .config import SEED, DEVICE
@@ -79,3 +81,83 @@ def get_circles(n: int = 400, noise: float = 0.08, factor: float = 0.5,
     return (torch.tensor(X_np, device=DEVICE),
             torch.tensor(y_np, device=DEVICE),
             X_np, y_np)
+
+
+def get_california_regression(n_train: int = 800, n_test: int = 400,
+                               n_components: int = 2, seed: int = SEED):
+    """
+    California Housing proyectado a ℝ² via PCA para regresión.
+
+    El dataset original tiene 8 features (MedInc, HouseAge, AveRooms,
+    AveBedrms, Population, AveOccup, Latitude, Longitude) y target continuo
+    (valor mediano de la vivienda en $100k, rango ~0.15–5.0).
+
+    Pipeline:
+        1. Submuestrear n_train+n_test filas (para velocidad de entrenamiento)
+        2. StandardScaler en features
+        3. PCA(n_components) → ℝ²  (el espacio donde corre la ODE)
+        4. StandardScaler en target  (media=0, std=1 → MSE estable)
+        5. train/test split
+
+    La varianza explicada por PCA(2) se reporta para informar sobre la
+    calidad de la proyección.  En California Housing, las dos primeras
+    componentes capturan principalmente la señal geográfica (Lat/Lon) y
+    de riqueza (MedInc), que son las más predictivas del precio.
+
+    Args:
+        n_train      : muestras de entrenamiento
+        n_test       : muestras de test
+        n_components : dimensión de la proyección PCA (= d1 del modelo)
+        seed         : semilla de aleatoriedad
+
+    Returns:
+        dict con:
+            X_train, y_train : tensores en DEVICE
+            X_test,  y_test  : tensores en DEVICE
+            X_train_np, y_train_np, X_test_np, y_test_np : arrays NumPy
+            pca              : objeto PCA ajustado (para visualización)
+            scaler_y         : StandardScaler del target (para invertir escala)
+            explained_var    : fracción de varianza explicada por PCA(2)
+    """
+    from sklearn.datasets import fetch_california_housing
+
+    data    = fetch_california_housing()
+    X_full  = data.data.astype(np.float32)
+    y_full  = data.target.astype(np.float32)
+
+    rng  = np.random.RandomState(seed)
+    idx  = rng.choice(len(X_full), size=n_train + n_test, replace=False)
+    X_s, y_s = X_full[idx], y_full[idx]
+
+    scaler_X  = StandardScaler().fit(X_s)
+    X_scaled  = scaler_X.transform(X_s)
+    pca       = PCA(n_components=n_components, random_state=seed).fit(X_scaled)
+    X_2d      = pca.transform(X_scaled).astype(np.float32)
+
+    scaler_y  = StandardScaler().fit(y_s.reshape(-1, 1))
+    y_norm    = scaler_y.transform(y_s.reshape(-1, 1)).ravel().astype(np.float32)
+
+    X_tr, X_te, y_tr, y_te = train_test_split(
+        X_2d, y_norm,
+        train_size=n_train, test_size=n_test,
+        random_state=seed
+    )
+
+    explained = float(pca.explained_variance_ratio_.sum())
+    print(f"  California Housing PCA({n_components}): "
+          f"varianza explicada = {explained:.1%}  "
+          f"| train={n_train}  test={n_test}")
+
+    return {
+        'X_train':    torch.tensor(X_tr, device=DEVICE),
+        'y_train':    torch.tensor(y_tr, device=DEVICE),
+        'X_test':     torch.tensor(X_te, device=DEVICE),
+        'y_test':     torch.tensor(y_te, device=DEVICE),
+        'X_train_np': X_tr,
+        'y_train_np': y_tr,
+        'X_test_np':  X_te,
+        'y_test_np':  y_te,
+        'pca':        pca,
+        'scaler_y':   scaler_y,
+        'explained_var': explained,
+    }
