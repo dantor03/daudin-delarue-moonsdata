@@ -961,24 +961,231 @@ En la práctica, $J^*_\infty$ se aproxima con la media de BCE\_test sobre las
 \end{itemize}
 
 % ============================================================
+\subsection{Experimento H: Diagnóstico de pSGLD}
+\label{sec:exp_h}
+
+\textbf{Motivación.} El Experimento~G muestra que pSGLD converge en pérdida,
+pero no garantiza que la distribución empírica de parámetros $\hat{\nu}^*$
+se acerque al prior de Gibbs $\nu^\infty \propto \exp(-\ell(a)/\varepsilon)$.
+De hecho, $\mathrm{KL}(\nu_N \| \nu^\infty) = +\infty$ cuando $\nu_N$ es
+una suma de $M=64$ deltas de Dirac (medida discreta vs.\ continua).
+El Experimento~H cuantifica esta brecha con métricas que no requieren
+absolutamente continuidad: MMD$^2$ y distancia de Wasserstein $W_1$.
+
+\textbf{Protocolo.}
+\begin{enumerate}
+  \item Se entrena un modelo con pSGLD durante 800 épocas y se recogen
+        2\,000 instantáneas de la trayectoria (submuestreo cada 10 pasos),
+        obteniendo $\hat{\nu}^*$ como promedio ergódico de la cadena.
+  \item Se generan 8\,000 muestras de $\nu^\infty$ mediante
+        \textbf{ULA} (Unadjusted Langevin Algorithm) con step adaptativo
+        $\eta = \min(5\times10^{-3},\, 0.5\,\varepsilon)$.
+        El step adaptativo es necesario porque la constante de Lipschitz
+        de $\nabla U(a) = \nabla\ell(a)/\varepsilon$ escala como $1/\varepsilon$.
+  \item Se calculan: MMD$^2(\nu_N, \hat{\nu}^*)$,
+        MMD$^2(\hat{\nu}^*, \nu^\infty)$ y $W_1$ por dimensión entre
+        $\hat{\nu}^*$ y $\nu^\infty$.
+\end{enumerate}
+
+\textbf{MMD$^2$ con kernel RBF.}
+\[
+  \mathrm{MMD}^2(P, Q) = \E_{x,x'\sim P}[k(x,x')]
+  - 2\,\E_{x\sim P,y\sim Q}[k(x,y)]
+  + \E_{y,y'\sim Q}[k(y,y')],
+\]
+donde $k(x,y) = \exp(-\|x-y\|^2 / (2\sigma^2))$ y $\sigma$ se fija
+por la heurística de la mediana: $\sigma^2 = \mathrm{mediana}(\|x_i - x_j\|^2)/2$.
+
+\textbf{Resultados.} MMD$^2(\nu_N, \hat{\nu}^*) \approx 0$
+(la trayectoria de pSGLD se mezcla bien internamente), pero
+MMD$^2(\hat{\nu}^*, \nu^\infty) = 0.217$
+(la distribución estacionaria empírica está lejos del prior de Gibbs).
+Esto cuantifica con precisión el problema teórico: pSGLD es internamente
+consistente, pero no implementa fielmente la regularización entrópica
+del paper de Daudin-Delarue.
+
+\textbf{Figura (H\_psgld\_diagnostic.png).} Layout 2×2:
+\begin{itemize}
+  \item H1 — Histogramas 1D de $\hat{\nu}^*$ vs.\ $\nu^\infty$ por dimensión.
+  \item H2 — Barras de MMD$^2$: $\nu_N$ vs.\ $\hat{\nu}^*$, y $\hat{\nu}^*$ vs.\ $\nu^\infty$.
+  \item H3 — $W_1$ por dimensión entre $\hat{\nu}^*$ y $\nu^\infty$.
+  \item H4 — Dispersión 2D con KDE de ambas distribuciones proyectadas.
+\end{itemize}
+
+% ============================================================
+\subsection{Experimento I: MMD y Sinkhorn como regularizadores (clasificación)}
+\label{sec:exp_i}
+
+\textbf{Motivación.} Dado que $\mathrm{KL}(\nu_N\|\nu^\infty)=+\infty$,
+se proponen MMD$^2$ y la divergencia de Sinkhorn como alternativas bien definidas
+para medir y penalizar la distancia entre $\nu_N$ y $\nu^\infty$.
+A diferencia del KL, estas métricas no requieren absolutamente continuidad.
+
+\textbf{Objetivo de entrenamiento con MMD.}
+\[
+  J_\text{MMD} = \mathcal{L}(X, y) + \varepsilon\cdot\mathrm{MMD}^2(\nu_N,\,\nu^\infty),
+\]
+donde $\mathcal{L}$ es la BCE (clasificación) o MSE (regresión).
+Para el término de entrenamiento se usa el estimador \emph{biased}
+(denominador $n^2$, no $n(n-1)$), más estable para $M=64$ pequeño.
+El término cruzado $\E[k(x,y)]$ con $\nu^\infty$ se precomputa una sola
+vez antes del bucle de entrenamiento.
+
+\textbf{Objetivo de entrenamiento con Sinkhorn (debiased).}
+La divergencia de Sinkhorn regularizada con blur $\sigma_\text{blur}$ es:
+\[
+  S_\sigma(P, Q) = \mathrm{OT}_\sigma(P,Q)
+  - \tfrac{1}{2}\mathrm{OT}_\sigma(P,P)
+  - \tfrac{1}{2}\mathrm{OT}_\sigma(Q,Q),
+\]
+donde $\mathrm{OT}_\sigma$ es el transporte óptimo con costo
+$C_{ij} = \|x_i - y_j\|^2 / \max(C)$ (normalizado a $[0,1]$)
+y regularización entrópica $\sigma_\text{blur}$.
+Se implementa en dominio logarítmico para estabilidad numérica.
+Los términos de auto-transporte $\mathrm{OT}_\sigma(Q,Q)$ con $\nu^\infty$
+se precomputan una sola vez.
+
+\textbf{Protocolo.} Se comparan tres métodos en make\_moons con $N=400$,
+$\varepsilon=0.01$, 700 épocas y 10 semillas:
+pSGLD (\texttt{use\_sgld=True}), MMD-reg (\texttt{use\_mmd=True})
+y Sinkhorn-reg (\texttt{use\_sinkhorn=True}, \texttt{blur}$=0.05$).
+
+\textbf{Resultados.} Los tres métodos convergen a accuracy similares en
+make\_moons ($\sim 90\%$), con MMD$^2(\nu_\text{reg}, \hat{\nu}^*_\text{pSGLD})
+\approx 0.014$--$0.019$. En clasificación la tarea es suficientemente
+sencilla para que el regularizador no discrimine entre métodos.
+
+% ============================================================
+\subsection{Experimento J: Regresión en California Housing}
+\label{sec:exp_j}
+
+\textbf{Motivación.} En clasificación (Exp.~I), el regularizador representa
+$\varepsilon\cdot\mathrm{reg}/\text{BCE} \approx 333\%$: domina la pérdida.
+En regresión con $\varepsilon=0.01$, la fracción es solo $\approx 0.25\%$:
+el regularizador es prácticamente invisible. La comparación en regresión
+somete los métodos a un régimen muy distinto.
+
+\textbf{Dataset.} California Housing (8 variables, 20\,640 viviendas).
+Se proyecta a $\R^2$ mediante PCA (varianza explicada: 48.9\%),
+se normaliza con \texttt{StandardScaler} y se sub-muestrea:
+$N_\text{train}=800$, $N_\text{test}=400$.
+La variable objetivo (precio mediano) se estandariza a media cero y varianza unitaria.
+
+\textbf{Métrica.} $R^2 = 1 - \mathrm{SS_{res}}/\mathrm{SS_{tot}}$
+(coeficiente de determinación), además del MSE.
+El modelo usa \texttt{task='regression'}: la cabeza lineal predice un escalar,
+la pérdida es MSE (en lugar de BCE).
+
+\textbf{Resultados} (500 épocas, $\varepsilon=0.01$):
+\begin{center}
+\begin{tabular}{lccc}
+\toprule
+Método & MSE$_\text{test}$ & $R^2_\text{test}$ \\
+\midrule
+pSGLD    & 0.845 & 0.158 \\
+MMD-reg  & 0.782 & 0.221 \\
+Sinkhorn-reg & 0.770 & 0.232 \\
+\bottomrule
+\end{tabular}
+\end{center}
+El techo de $R^2 \approx 0.25$ refleja la pérdida de información del PCA(2)
+(48.9\% de varianza explicada), no necesariamente los límites del método.
+La hipótesis de que la inferioridad de pSGLD puede ser un artefacto de
+escala de $\varepsilon$ se investiga en el Experimento~K.
+
+\textbf{Figura (J\_california\_regression.png).} Layout 2×3:
+curvas de convergencia MSE/R², valores del regularizador,
+predicho vs.\ real, comparación $W_1$, dispersión 2D en espacio PCA.
+
+% ============================================================
+\subsection{Experimento K: Barrido de $\varepsilon$ en regresión}
+\label{sec:exp_k}
+
+\textbf{Motivación.} El valor $\varepsilon=0.01$ genera una fracción de
+regularización muy diferente entre clasificación y regresión:
+\[
+  \text{Clasificación (Exp.~I):}\quad
+  \frac{\varepsilon\cdot\mathrm{reg}}{\text{BCE}} \approx 3.33
+  \qquad\text{vs.}\qquad
+  \text{Regresión (Exp.~J):}\quad
+  \frac{\varepsilon\cdot\mathrm{reg}}{\text{MSE}} \approx 0.003.
+\]
+La inferioridad de pSGLD en Exp.~J puede ser un artefacto del valor de
+$\varepsilon$, no una propiedad fundamental del método.
+
+\textbf{Protocolo.} Para cada $\varepsilon \in \{0.001, 0.01, 0.1, 0.5, 1, 5\}$:
+\begin{enumerate}
+  \item Se regeneran las muestras del prior $\nu^\infty \propto \exp(-\ell(a)/\varepsilon)$
+        usando ULA con step $\eta = \min(5\times10^{-3},\, 0.5\,\varepsilon)$.
+        Es obligatorio regenerar porque $\nu^\infty$ depende de $\varepsilon$.
+  \item Se entrenan pSGLD, MMD-reg y Sinkhorn-reg durante 500 épocas.
+  \item Se registran MSE, $R^2$ (train y test) y la fracción de regularización.
+\end{enumerate}
+
+\textbf{Resultados:}
+\begin{center}
+\begin{tabular}{lcccc}
+\toprule
+$\varepsilon$ & pSGLD & MMD & Sinkhorn & $\varepsilon$ óptimo de\\
+\midrule
+0.001 & \textbf{0.236} & 0.205 & 0.218 & pSGLD\\
+0.01  & 0.158 & \textbf{0.221} & 0.232 & MMD\\
+0.1   & $-0.000$ & 0.216 & \textbf{0.253} & Sinkhorn\\
+0.5   & $-0.003$ & 0.212 & 0.240 & \\
+1.0   & $-0.206$ & 0.219 & 0.208 & \\
+5.0   & $-28.8$  & 0.197 & 0.094 & \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{Conclusiones:}
+\begin{itemize}
+  \item \textbf{pSGLD} solo es competitivo para $\varepsilon \leq 0.001$.
+        Para $\varepsilon \geq 0.1$ el ruido Langevin $\sqrt{2\eta\varepsilon M}\,\xi$
+        domina el gradiente y el modelo diverge.
+        Su ``mejor'' R$^2=0.236$ se alcanza cuando $\varepsilon \to 0$,
+        es decir, cuando la regularización entrópica desaparece.
+  \item \textbf{MMD} es notablemente robusto: $R^2 \approx 0.21$ para todo
+        $\varepsilon \in [0.001, 1.0]$. La fracción de regularización se mantiene
+        siempre pequeña porque el estimador MMD$^2$ escala diferente a $1/\varepsilon$.
+  \item \textbf{Sinkhorn} tiene un óptimo claro en $\varepsilon=0.1$
+        ($R^2=0.253$, el mejor global), pero se degrada para $\varepsilon \geq 1$
+        porque la fracción de regularización supera el 200\%.
+  \item El ranking definitivo al $\varepsilon$ óptimo de cada método es
+        Sinkhorn $(0.253)$ $>$ pSGLD $(0.236)$ $>$ MMD $(0.221)$.
+        La inferioridad de pSGLD en Exp.~J no era solo un artefacto de
+        escala: Sinkhorn supera genuinamente a los demás cuando se calibra bien.
+\end{itemize}
+
+\textbf{Figura (K\_epsilon\_sweep.png).} Layout 2×2:
+K1 ($R^2_\text{test}$ vs.\ $\varepsilon$ en log),
+K2 (train vs.\ test $R^2$ para detectar overfitting),
+K3 (fracción de regularización $\varepsilon\cdot\text{reg}/\text{MSE}$ en log-log),
+K4 (barras comparativas al $\varepsilon$ original, compartido óptimo e individual óptimo).
+
+% ============================================================
 \section{Resumen de la arquitectura}
 \label{sec:resumen}
 
 \begin{center}
-\begin{tabular}{lp{10.5cm}}
+\begin{tabular}{p{4.8cm}p{10.5cm}}
 \toprule
 Bloque & Descripción \\
 \midrule
-Datasets & make\_moons (A–E, G) y make\_circles (F), $N=400$, normalizados \\
+Datasets & make\_moons (A–G, I), make\_circles (F), California Housing PCA(2) (J, K) \\
 ODE & $dX_t/dt = F(X_t,t)$, $t \in [0,1]$, 10 pasos RK4 \\
 Campo $F$ & $(1/M)\sum_m \tanh(a_1^m \cdot x + a_2^m t + b_1^m)\,a_0^m$,\; $M=64$ \\
 Parámetros ODE & $W_1 \in \R^{64\times3}$, $b_1\in\R^{64}$, $W_0\in\R^{2\times64}$ (384 total)\\
-Clasificador & $\ell = W \cdot X_T + b$,\; $W \in \R^{1\times 2}$,\; $b \in \R$ (3 total) \\
+Clasificador/Regresor & $\ell = W \cdot X_T + b$,\; $W \in \R^{1\times 2}$,\; $b \in \R$ (3 total) \\
 Total parámetros & 387 \\
-Pérdida & $J = \text{BCE} + \varepsilon \cdot \mathcal{E}$,\; $\varepsilon = 0.01$ \\
+Pérdida (clasificación) & $J = \text{BCE} + \varepsilon \cdot \mathcal{E}$,\; $\varepsilon = 0.01$ \\
+Pérdida (regresión) & $J = \text{MSE} + \varepsilon \cdot \mathcal{E}$,\; $\varepsilon \in [0.001, 5]$ \\
 Optimizador (A, D) & Adam \cite{kingma2015adam},\; $\alpha_0=0.01$,\; cosine annealing \\
 Optimizador (C) & SGD,\; $\alpha=0.01$ constante,\; sin ruido \\
-Optimizador (B, E, F, G) & pSGLD \cite{li2016psgld},\; $\theta \leftarrow \text{Adam}(\theta,\nabla J) + \sqrt{2\eta\varepsilon M}\,\xi$,\; $M = \min(1/\sqrt{\hat{v}}+\delta,\,1)$ \\
+Optimizador pSGLD (B,E–H,I,J,K) & \cite{li2016psgld},\; $\theta \leftarrow \text{Adam}(\theta,\nabla J) + \sqrt{2\eta\varepsilon M}\,\xi$,\; $M = \min(1/\sqrt{\hat{v}}+\delta,\,1)$ \\
+Regularizador MMD (I,J,K) & $\mathcal{E} = \mathrm{MMD}^2(\nu_N, \nu^\infty)$,\; kernel RBF,\; $\sigma$ por heurística mediana \cite{gretton2012kernel} \\
+Regularizador Sinkhorn (I,J,K) & $\mathcal{E} = S_\sigma(\nu_N, \nu^\infty)$,\; Sinkhorn debiased,\; log-domain \cite{feydy2019interpolating} \\
+Prior $\nu^\infty$ (H–K) & ULA,\; $\eta = \min(5\times10^{-3},\, 0.5\varepsilon)$,\; $n_\text{burnin}=5000$ \\
 Gradient clip & $G_{\max}=5$ (todos los modos) \\
 \bottomrule
 \end{tabular}
@@ -1016,6 +1223,17 @@ Gradient clip & $G_{\max}=5$ (todos los modos) \\
   in \textit{International Conference on Learning Representations (ICLR)},
   2017.
   \url{https://arxiv.org/abs/1608.03983}
+
+\bibitem{gretton2012kernel}
+  A.~Gretton, K.~M.~Borgwardt, M.~J.~Rasch, B.~Schölkopf, and A.~Smola,
+  \textit{A Kernel Two-Sample Test},
+  \textit{Journal of Machine Learning Research}, 13:723--773, 2012.
+
+\bibitem{feydy2019interpolating}
+  J.~Feydy, T.~Séjourné, F.-X.~Vialard, S.-i.~Amari, A.~Trouvé, and G.~Peyré,
+  \textit{Interpolating between Optimal Transport and MMD using Sinkhorn Divergences},
+  in \textit{International Conference on Artificial Intelligence and Statistics
+  (AISTATS)}, 2019.
 
 \bibitem{chen2018node}
   R.~T.~Q.~Chen, Y.~Rubanova, J.~Bettencourt, and D.~Duvenaud,
