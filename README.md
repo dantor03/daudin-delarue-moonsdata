@@ -4,7 +4,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![arXiv](https://img.shields.io/badge/arXiv-2507.08486-b31b1b.svg)](https://arxiv.org/abs/2507.08486)
 
-Verificación empírica de **Daudin & Delarue (2025)**: Neural ODEs de campo medio con regularización entrópica, la condición de Polyak-Łojasiewicz y garantías de convergencia exponencial — aplicadas a los datasets `make_moons` y `make_circles`.
+Verificación empírica de **Daudin & Delarue (2025)**: Neural ODEs de campo medio con regularización entrópica, la condición de Polyak-Łojasiewicz y garantías de convergencia exponencial — aplicadas a los datasets `make_moons`, `make_circles` y **California Housing**. Incluye diagnóstico de pSGLD y regularizadores alternativos basados en MMD² y la divergencia de Sinkhorn.
 
 > Daudin, S. & Delarue, F. (2025). *Genericity of the Polyak-Łojasiewicz inequality for mean-field Neural ODEs with entropic regularization.* [arXiv:2507.08486](https://arxiv.org/abs/2507.08486)
 
@@ -38,6 +38,10 @@ con $\ell(a) = 0.05|a|^4 + 0.5|a|^2$ (supercoercivo). Para cualquier $\varepsilo
 | **E** | Robustez de $\nu^*$ (make\_moons) | La distribución $\nu^*$ es estable entre entrenamientos | `E_parameter_robustness.png` |
 | **F** | Convergencia en make\_circles | Robustez de la convergencia a semillas de datos e inicialización en un dataset con simetría $SO(2)$ | `F_circles_parameter_distribution.png` |
 | **G** | Problema de convergencia ($N \to \infty$) | Evidencia empírica de la conjetura $J^*_N \to J^*_\infty$ (extensión futura del paper); tasa estimada gap $\propto N^{-\alpha}$ con $\alpha \approx 0.78$–$0.85$ | `G_convergence_problem.png` |
+| **H** | Diagnóstico de pSGLD | Cuantifica la brecha entre $\hat{\nu}^*$ (distribución empírica de pSGLD) y el prior de Gibbs $\nu^\infty$ mediante MMD² y $W_1$. MMD²($\hat{\nu}^*$, $\nu^\infty$) = 0.217 | `H_psgld_diagnostic.png` |
+| **I** | MMD y Sinkhorn como regularizadores (make\_moons) | Compara pSGLD vs MMD-reg vs Sinkhorn-reg en clasificación; los tres convergen a distribuciones de parámetros similares | `I_regularizer_comparison.png` |
+| **J** | Regresión: California Housing PCA(2) | pSGLD ($R^2$=0.19) < MMD ($R^2$=0.22) < Sinkhorn ($R^2$=0.23); detecta el desajuste de escala de $\varepsilon$ en regresión | `J_california_regression.png` |
+| **K** | Barrido de $\varepsilon$ en regresión | MMD robusto en $\varepsilon\in[0.001,1]$; Sinkhorn óptimo en $\varepsilon=0.1$ ($R^2$=0.253); pSGLD colapsa para $\varepsilon\geq 0.1$ | `K_epsilon_sweep.png` |
 
 ---
 
@@ -53,6 +57,9 @@ con $\ell(a) = 0.05|a|^4 + 0.5|a|^2$ (supercoercivo). Para cualquier $\varepsilo
 | $\nu^*$ es robusta a las condiciones de entrenamiento | Exp. E: curvas de importancia $\|a_0^m\|_2$ estables entre seeds |
 | La convergencia es robusta a semillas de datos e inicialización | Exp. F: make\_circles — bandas de pérdida estrechas tanto en F1 (datos variables) como en F2 (init variable) |
 | *Conjetura* (extensión futura del paper): $J^*_N \to J^*_\infty$ cuando $N \to \infty$ | Exp. G: BCE$_\text{test}$ converge con tasa emp. $\alpha \approx 0.78$–$0.85$ (más rápida que $N^{-1/2}$ clásico) |
+| $\mathrm{KL}(\nu_N\|\nu^\infty)=+\infty$ con $M=64$ Dirac deltas | Exp. H: MMD²($\hat{\nu}^*$, $\nu^\infty$)=0.217; pSGLD es internamente consistente pero no implementa la KL del paper |
+| MMD² y Sinkhorn son alternativas bien definidas a la KL | Exp. I/J: ambas superan a pSGLD en regresión; MMD es más robusto a $\varepsilon$, Sinkhorn tiene mejor techo |
+| La escala de $\varepsilon$ importa: reg. fraction ≪ 1 en regresión con $\varepsilon=0.01$ | Exp. K: pSGLD funciona solo con $\varepsilon\leq 0.001$; Sinkhorn óptimo en $\varepsilon=0.1$ ($R^2$=0.253) |
 
 ---
 
@@ -86,6 +93,10 @@ python -m codigo --experiment D          # genericidad
 python -m codigo --experiment E          # robustez de ν*
 python -m codigo --experiment F          # simetría en make_circles
 python -m codigo --experiment G          # convergencia N → ∞
+python -m codigo --experiment H          # diagnóstico pSGLD (MMD², W₁)
+python -m codigo --experiment I          # MMD vs Sinkhorn vs pSGLD (make_moons)
+python -m codigo --experiment J          # regresión California Housing
+python -m codigo --experiment K          # barrido de ε en regresión
 python -m codigo --experiment B --epochs 1000  # con número de épocas distinto
 ```
 
@@ -99,11 +110,12 @@ Las figuras se guardan en `figuras/`.
 daudin-delarue-moonsdata/
 ├── codigo/
 │   ├── config.py          # Constantes, dispositivo, tema visual
-│   ├── data.py            # get_moons(), get_circles()
-│   ├── model.py           # MeanFieldVelocity, MeanFieldResNet
-│   ├── train.py           # train() con Adam/SGD/pSGLD, mu_pl_estimate()
+│   ├── data.py            # get_moons(), get_circles(), get_california_regression()
+│   ├── model.py           # MeanFieldVelocity, MeanFieldResNet (clasificación + regresión)
+│   ├── metrics.py         # MMD², W₁, ULA prior sampler, Sinkhorn (diagnóstico y training)
+│   ├── train.py           # train() con Adam/SGD/pSGLD/MMD-reg/Sinkhorn-reg
 │   ├── plots.py           # plot_decision_boundary()
-│   ├── main.py            # CLI con argparse (--experiment {A,B,C,D,E,F,G})
+│   ├── main.py            # CLI con argparse (--experiment {A,...,K})
 │   └── experiments/
 │       ├── exp_a.py       # Experimento A
 │       ├── exp_b.py       # Experimento B
@@ -111,7 +123,11 @@ daudin-delarue-moonsdata/
 │       ├── exp_d.py       # Experimento D
 │       ├── exp_e.py       # Experimento E (robustez de ν*)
 │       ├── exp_f.py       # Experimento F (make_circles)
-│       └── exp_g.py       # Experimento G (convergencia N → ∞)
+│       ├── exp_g.py       # Experimento G (convergencia N → ∞)
+│       ├── exp_h.py       # Experimento H (diagnóstico pSGLD: MMD², W₁)
+│       ├── exp_i.py       # Experimento I (MMD y Sinkhorn en clasificación)
+│       ├── exp_j.py       # Experimento J (regresión California Housing)
+│       └── exp_k.py       # Experimento K (barrido de ε en regresión)
 ├── colab_experiment_G.ipynb       # Notebook para ejecutar G en Google Colab (GPU)
 ├── docs/
 │   ├── DOCUMENTACION.md          # Documentación técnica completa
@@ -145,7 +161,9 @@ X_0 ∈ ℝ²  →  [ODE: dX/dt = F(X,t), t ∈ [0,1]]  →  X_T ∈ ℝ²  → 
 |---|---|---|
 | Adam + cosine annealing | A, D | Convergencia rápida |
 | SGD + lr constante | C | Verificación PL sin artefactos del scheduler |
-| **pSGLD** + cosine annealing | B, E, F, G | Adam base + ruido acoplado al precondicionador $M_t$: $\theta \leftarrow \text{Adam}(\theta,\nabla J) + \sqrt{2\eta\varepsilon M_t}\,\xi$ |
+| **pSGLD** + cosine annealing | B, E, F, G, H, I, J, K | Adam base + ruido acoplado al precondicionador $M_t$: $\theta \leftarrow \text{Adam}(\theta,\nabla J) + \sqrt{2\eta\varepsilon M_t}\,\xi$ |
+| **MMD-reg** | I, J, K | $J = \mathcal{L} + \varepsilon\cdot\mathrm{MMD}^2(\nu_N, \nu^\infty)$, kernel RBF, $\sigma$ por heurística de mediana |
+| **Sinkhorn-reg** | I, J, K | $J = \mathcal{L} + \varepsilon\cdot S_\sigma(\nu_N, \nu^\infty)$, divergencia de Sinkhorn debiased, log-domain |
 
 **pSGLD** (Li et al. 2016): el ruido de Langevin está acoplado al precondicionador de Adam componente a componente, $M_t[j] = \min(1/(\sqrt{\hat{v}_t[j]} + \delta),\, 1)$. La cota superior en 1 evita explosión de ruido en direcciones planas. El acoplamiento es necesario para que la distribución estacionaria sea la de Gibbs $\nu^* \propto \exp(-J/\varepsilon)$; ruido isotrópico rompe esta propiedad.
 
@@ -171,4 +189,6 @@ X_0 ∈ ℝ²  →  [ODE: dX/dt = F(X,t), t ∈ [0,1]]  →  X_T ∈ ℝ²  → 
 - Chen et al. (2018). *Neural Ordinary Differential Equations.* NeurIPS. [arXiv:1806.07366](https://arxiv.org/abs/1806.07366)
 - Welling, M. & Teh, Y. W. (2011). *Bayesian Learning via Stochastic Gradient Langevin Dynamics.* ICML.
 - Li, C., Chen, C., Carlson, D., & Carin, L. (2016). *Preconditioned Stochastic Gradient Langevin Dynamics for Deep Neural Networks.* AAAI. [arXiv:1512.07666](https://arxiv.org/abs/1512.07666)
+- Gretton, A. et al. (2012). *A Kernel Two-Sample Test.* JMLR, 13:723–773.
+- Feydy, J. et al. (2019). *Interpolating between Optimal Transport and MMD using Sinkhorn Divergences.* AISTATS.
 - Polyak, B.T. (1963). *Gradient methods for minimizing functionals.* USSR Comput. Math. Math. Phys.

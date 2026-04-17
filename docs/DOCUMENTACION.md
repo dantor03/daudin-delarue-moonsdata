@@ -2,7 +2,7 @@
 
 **Referencia:** Daudin, S. & Delarue, F. (2025). *Genericity of the Polyak-Łojasiewicz inequality for mean-field Neural ODEs with entropic regularization.* arXiv:2507.08486.
 
-**Código:** `python -m codigo` — ejecuta todos los experimentos. Opciones: `--experiment {A,B,C,D,E,F,G}`, `--epochs N`.
+**Código:** `python -m codigo` — ejecuta todos los experimentos. Opciones: `--experiment {A,B,C,D,E,F,G,H,I,J,K}`, `--epochs N`.
 
 ---
 
@@ -18,7 +18,11 @@
 - [8. Experimento E — Robustez de $\nu^*$ (make\_moons)](#8-experimento-e--robustez-de-nu-make_moons)
 - [9. Experimento F — Convergencia en make\_circles](#9-experimento-f--convergencia-en-make_circles)
 - [10. Experimento G — Problema de convergencia ($N \to \infty$)](#10-experimento-g--problema-de-convergencia-n-to-infty)
-- [11. Conclusiones](#11-conclusiones)
+- [11. Experimento H — Diagnóstico de pSGLD](#11-experimento-h--diagnóstico-de-psgld)
+- [12. Experimento I — MMD y Sinkhorn como regularizadores (make\_moons)](#12-experimento-i--mmd-y-sinkhorn-como-regularizadores-make_moons)
+- [13. Experimento J — Regresión: California Housing PCA(2)](#13-experimento-j--regresión-california-housing-pca2)
+- [14. Experimento K — Barrido de $\varepsilon$ en regresión](#14-experimento-k--barrido-de-varepsilon-en-regresión)
+- [15. Conclusiones](#15-conclusiones)
 - [Referencias](#referencias)
 
 ---
@@ -114,7 +118,7 @@ La condición PL es **más débil que la convexidad estricta** pero suficiente p
 
 ### 3.1 Dataset
 
-Se usa `make_moons` de scikit-learn con $N = 400$ puntos y ruido $\sigma = 0.12$, estandarizado con `StandardScaler`. El experimento F usa `make_circles` ($N=400$, noise=0.08, factor=0.5). El experimento G varía $N \in \{25, 50, 100, 200, 400, 800\}$ para estudiar la convergencia en número de partículas.
+Se usa `make_moons` de scikit-learn con $N = 400$ puntos y ruido $\sigma = 0.12$, estandarizado con `StandardScaler`. El experimento F usa `make_circles` ($N=400$, noise=0.08, factor=0.5). El experimento G varía $N \in \{25, 50, 100, 200, 400, 800\}$. Los experimentos J y K usan **California Housing** proyectado a $\mathbb{R}^2$ mediante PCA (varianza explicada: 48.9%), con $N_\text{train}=800$ y $N_\text{test}=400$.
 
 En el lenguaje del paper, los datos constituyen la **distribución inicial empírica**:
 
@@ -154,7 +158,9 @@ La función `train()` implementa tres modos, seleccionados según el objetivo de
 |---|---|---|---|
 | **Adam** (defecto) | — | A, D | Adam + cosine annealing |
 | **SGD puro** | `use_sgd=True` | C | $\theta \leftarrow \theta - \eta \nabla J$ (lr constante) |
-| **pSGLD** | `use_sgld=True` | B, E, F, G | $\theta \leftarrow \text{Adam}(\theta, \nabla J) + \sqrt{2\eta\varepsilon M_t}\,\xi$, $\xi \sim \mathcal{N}(0, I)$ |
+| **pSGLD** | `use_sgld=True` | B, E, F, G, H, I, J, K | $\theta \leftarrow \text{Adam}(\theta, \nabla J) + \sqrt{2\eta\varepsilon M_t}\,\xi$, $\xi \sim \mathcal{N}(0, I)$ |
+| **MMD-reg** | `use_mmd=True` | I, J, K | $J = \mathcal{L} + \varepsilon\cdot\widehat{\mathrm{MMD}}^2(\nu_N, \nu^\infty)$, estimador sesgado, kernel RBF |
+| **Sinkhorn-reg** | `use_sinkhorn=True` | I, J, K | $J = \mathcal{L} + \varepsilon\cdot S_\sigma(\nu_N, \nu^\infty)$, divergencia debiased, log-Sinkhorn |
 
 **pSGLD** (preconditioned Stochastic Gradient Langevin Dynamics, Li et al. 2016) combina Adam como optimizador base con ruido de Langevin **acoplado al precondicionador** $M_t$ de Adam:
 
@@ -350,26 +356,124 @@ donde $J^*_\infty$ se aproxima con la media de BCE$_\text{test}$ para $N=800$.
 
 ---
 
-## 11. Conclusiones
+## 11. Experimento H — Diagnóstico de pSGLD
+
+**Objetivo:** Cuantificar la brecha entre la distribución estacionaria empírica de pSGLD ($\hat{\nu}^*$) y el prior de Gibbs teórico $\nu^\infty$. La causa es estructural: $\mathrm{KL}(\nu_N\|\nu^\infty) = +\infty$ porque $\nu_N = \frac{1}{M}\sum_m \delta_{a^m}$ es discreta y $\nu^\infty$ es continua — el término entrópico del funcional $J$ no está bien definido en el régimen discreto.
+
+**Protocolo:**
+1. Entrenar con pSGLD (800 épocas) y recoger 2000 snapshots post-convergencia (thin=10) → $\hat{\nu}^*$ como promedio ergódico.
+2. Generar 8000 muestras de $\nu^\infty \propto e^{-\ell(a)/\varepsilon}$ por ULA con step adaptativo $\eta = \min(5\times10^{-3}, 0.5\varepsilon)$.
+3. Calcular MMD² y $W_1$ entre los tres objetos: $\nu_N$ (64 partículas finales), $\hat{\nu}^*$ (trayectoria), $\nu^\infty$ (ULA).
+
+**Métricas:**
+$$\mathrm{MMD}^2(P,Q) = \mathbb{E}_{x,x'\sim P}[k(x,x')] - 2\mathbb{E}_{x\sim P,y\sim Q}[k(x,y)] + \mathbb{E}_{y,y'\sim Q}[k(y,y')]$$
+con kernel gaussiano $k(x,y) = \exp(-\|x-y\|^2/2\sigma^2)$, $\sigma$ por heurística de mediana.
+
+**Resultados:**
+
+| Par | MMD² |
+|---|---|
+| $\nu_N$ vs $\hat{\nu}^*$ | ≈ 0 (pSGLD mezcla bien internamente) |
+| $\hat{\nu}^*$ vs $\nu^\infty$ | **0.217** (brecha real entre pSGLD y el prior teórico) |
+| $\nu_N$ vs $\nu^\infty$ | 0.512 |
+
+**Conclusión:** pSGLD es internamente consistente pero no implementa fielmente la regularización entrópica del paper. El prior $\nu^\infty$ es bimodal (visible en los histogramas 1D); pSGLD solo explora uno de los dos modos.
+
+![Diagnóstico pSGLD](../figuras/H_psgld_diagnostic.png)
+
+---
+
+## 12. Experimento I — MMD y Sinkhorn como regularizadores (make\_moons)
+
+**Motivación:** Dado que $\mathrm{KL}(\nu_N\|\nu^\infty)=+\infty$, se proponen MMD² y la divergencia de Sinkhorn como alternativas bien definidas que no requieren absolutamente continuidad entre medidas.
+
+**Objetivo de entrenamiento:**
+$$J_\text{MMD} = \mathcal{L} + \varepsilon\cdot\widehat{\mathrm{MMD}}^2(\nu_N, \nu^\infty), \qquad J_\text{Sink} = \mathcal{L} + \varepsilon\cdot S_\sigma(\nu_N, \nu^\infty)$$
+
+La divergencia de Sinkhorn debiased es:
+$$S_\sigma(P,Q) = \mathrm{OT}_\sigma(P,Q) - \tfrac{1}{2}\mathrm{OT}_\sigma(P,P) - \tfrac{1}{2}\mathrm{OT}_\sigma(Q,Q)$$
+implementada en dominio logarítmico para estabilidad numérica.
+
+**Configuración:** make\_moons, $N=400$, $\varepsilon=0.01$, 700 épocas.
+
+**Resultados:** Los tres métodos convergen a accuracy ≈ 90% y a distribuciones de parámetros similares (MMD²($\nu_\text{reg}$, $\hat{\nu}^*_\text{pSGLD}$) ≈ 0.014–0.019). En clasificación la tarea no discrimina entre regularizadores.
+
+![Comparación regularizadores](../figuras/I_regularizer_comparison.png)
+
+---
+
+## 13. Experimento J — Regresión: California Housing PCA(2)
+
+**Motivación:** En clasificación, $\varepsilon\cdot\mathrm{reg}/\text{BCE} \approx 333\%$. En regresión con $\varepsilon=0.01$, $\varepsilon\cdot\mathrm{reg}/\text{MSE} \approx 0.25\%$: el regularizador es invisible. La comparación en regresión es más informativa.
+
+**Dataset:** California Housing (8 variables: MedInc, HouseAge, AveRooms, AveBedrms, Population, AveOccup, Latitude, Longitude). Se proyecta a $\mathbb{R}^2$ por PCA:
+- **PC1** (25.7%): eje geográfico dominado por Latitud (+0.62) y Longitud (−0.60)
+- **PC2** (23.2%): eje socioeconómico dominado por AveRooms (+0.62), AveBedrms (+0.45), MedInc (+0.40)
+
+El techo de $R^2 \approx 0.25$ refleja que el 51.1% de varianza descartada por PCA(2) contiene información predictiva del precio.
+
+**Resultados** ($\varepsilon=0.01$, 500 épocas):
+
+| Método | $R^2_\text{test}$ | MSE$_\text{test}$ |
+|---|---|---|
+| pSGLD | 0.187 | 0.845 |
+| MMD-reg | 0.221 | 0.782 |
+| Sinkhorn-reg | 0.232 | 0.770 |
+
+pSGLD subestima sistemáticamente los precios altos y tiene mayor varianza de error. La hipótesis de que la inferioridad es un artefacto de escala de $\varepsilon$ se investiga en el Experimento K.
+
+![Regresión California Housing](../figuras/J_california_regression.png)
+
+---
+
+## 14. Experimento K — Barrido de $\varepsilon$ en regresión
+
+**Motivación:** Con $\varepsilon=0.01$ la fracción de regularización en regresión es 0.003 vs 3.33 en clasificación. Se barre $\varepsilon \in \{0.001, 0.01, 0.1, 0.5, 1.0, 5.0\}$ regenerando las muestras del prior para cada $\varepsilon$ (obligatorio: $\nu^\infty \propto e^{-\ell(a)/\varepsilon}$ depende de $\varepsilon$).
+
+**Resultados ($R^2_\text{test}$):**
+
+| $\varepsilon$ | pSGLD | MMD | Sinkhorn |
+|---|---|---|---|
+| 0.001 | **0.236** | 0.205 | 0.218 |
+| 0.01 | 0.158 | **0.221** | 0.232 |
+| 0.1 | −0.000 | 0.216 | **0.253** |
+| 0.5 | −0.003 | 0.212 | 0.240 |
+| 1.0 | −0.206 | 0.219 | 0.208 |
+| 5.0 | −28.8 | 0.197 | 0.094 |
+
+**Conclusiones:**
+- **pSGLD**: funciona solo con $\varepsilon\leq 0.001$ — su ruido Langevin $\propto\sqrt{\varepsilon}$ destruye el aprendizaje para $\varepsilon\geq 0.1$. Su mejor $R^2$ se alcanza cuando la regularización desaparece ($\varepsilon\to 0$).
+- **MMD**: prácticamente plano en $R^2\approx 0.21$ para todo $\varepsilon\in[0.001, 1.0]$. La fracción de regularización es siempre pequeña porque MMD² está acotado por construcción.
+- **Sinkhorn**: óptimo en $\varepsilon=0.1$ ($R^2=0.253$, el mejor global). Colapsa para $\varepsilon\geq 1$ porque la fracción de regularización supera el 200%.
+- **Ranking definitivo al $\varepsilon$ óptimo**: Sinkhorn (0.253) > pSGLD (0.236) > MMD (0.221). La inferioridad de pSGLD en J no era solo un artefacto de escala.
+
+![Barrido de epsilon](../figuras/K_epsilon_sweep.png)
+
+---
+
+## 15. Conclusiones
 
 | Resultado del paper | Verificación empírica |
 |---|---|
 | La ODE transforma $\gamma_0$ en $\gamma_T$ linealmente separable | Exp. A: lunas → puntos separados, acc ≈ 100% |
 | $\varepsilon > 0$ concentra los parámetros cerca de $\nu^\infty$ | Exp. B: std($\theta$) decrece con $\varepsilon$; campo de velocidad más uniforme |
 | Condición PL: $\|\nabla J\|^2 \geq 2\mu(J-J^*)$ con $\mu > 0$ | Exp. C: ratio PL > 0 en todas las épocas para todo $\varepsilon > 0$ |
-| Convergencia exponencial bajo PL | Exp. C2: decay lineal en escala log con SGD+lr constante (sin artefactos del scheduler) |
+| Convergencia exponencial bajo PL | Exp. C2: decay lineal en escala log con SGD+lr constante |
 | Genericidad (Meta-Teorema 1): minimizador único para casi toda $\gamma_0$ | Exp. D2/D3: fronteras de decisión cualitativamente similares entre data seeds |
 | $\varepsilon > 0$ garantiza existencia de minimizador estable cerca del óptimo | Exp. D1: $\hat{\mu} > 0$ para todo init seed con $\varepsilon=0.01$ |
-| $\nu^*$ es robusta a las condiciones de entrenamiento | Exp. E: curvas de importancia $\|a_0^m\|_2$ estables entre seeds en E-1 y E-2 |
-| La convergencia es robusta a semillas de datos e inicialización | Exp. F: make\_circles — bandas de pérdida estrechas en F1 (datos variables) y F2 (init variable) |
-| *Problema abierto*: $J^*_N \to J^*_\infty$ cuando $N \to \infty$ | Exp. G: BCE$_\text{test}$ converge con tasa empírica $\alpha \approx 0.78$–$0.85$ (más rápida que $N^{-1/2}$ clásico) |
-
-La contribución más importante del paper es la **robustez del resultado**: $\varepsilon$ no necesita ser grande para garantizar la condición PL y la convergencia exponencial. Con cualquier $\varepsilon > 0$, por pequeño que sea, el descenso en gradiente converge exponencialmente al mínimo global — sin convexidad.
+| $\nu^*$ es robusta a las condiciones de entrenamiento | Exp. E: curvas de importancia $\|a_0^m\|_2$ estables entre seeds |
+| La convergencia es robusta a semillas de datos e inicialización | Exp. F: make\_circles — bandas de pérdida estrechas en F1 y F2 |
+| *Problema abierto*: $J^*_N \to J^*_\infty$ cuando $N \to \infty$ | Exp. G: BCE$_\text{test}$ converge con tasa empírica $\alpha \approx 0.78$–$0.85$ |
+| $\mathrm{KL}(\nu_N\|\nu^\infty)=+\infty$ con $M=64$ Dirac deltas | Exp. H: pSGLD mezcla bien internamente pero MMD²($\hat{\nu}^*$, $\nu^\infty$)=0.217; no captura la bimodalidad del prior |
+| MMD² y Sinkhorn son alternativas bien definidas a la KL | Exp. I: en clasificación los tres métodos son equivalentes; Exp. J/K: Sinkhorn supera a pSGLD en regresión |
+| La escala de $\varepsilon$ es crítica en regresión | Exp. K: ranking al $\varepsilon$ óptimo — Sinkhorn (0.253) > pSGLD (0.236) > MMD (0.221); pSGLD colapsa para $\varepsilon\geq 0.1$ |
 
 **Limitaciones de la implementación:**
 1. **Restricción temporal:** $a_0^m$ y $a_1^m$ son constantes en $t$; solo $a_2^m(t)$ varía linealmente. El espacio de controles es un subconjunto estricto del del paper.
-2. **Término de regularización:** Solo se implementa el término de energía de la KL ($\mathbb{E}_\nu[\ell(a)]$ = regularización L4+L2). El término de entropía $-H(\nu_t)$ se aproxima mediante el ruido de Langevin (SGLD) en B/E/F/G, no mediante inferencia variacional exacta.
-3. **$M$ finito:** La teoría es exacta en el límite $M \to \infty$. Los experimentos usan $M=64$ partículas.
+2. **Término de regularización (A–G):** Solo se implementa el término de energía de la KL ($\mathbb{E}_\nu[\ell(a)]$). El término de entropía $-H(\nu_t)$ se aproxima mediante el ruido de Langevin.
+3. **Término de regularización (H–K):** MMD² y Sinkhorn son sustitutos bien definidos de la KL pero miden cosas distintas: MMD compara momentos integrados; Sinkhorn compara geometría de masas (transporte óptimo).
+4. **$M$ finito:** La teoría es exacta en el límite $M \to \infty$. Los experimentos usan $M=64$ partículas.
+5. **PCA(2) en regresión:** La proyección a $\mathbb{R}^2$ captura solo el 48.9% de la varianza de California Housing, imponiendo un techo de $R^2\approx 0.25$ independiente del método.
 
 ---
 
@@ -380,4 +484,6 @@ La contribución más importante del paper es la **robustez del resultado**: $\v
 - Welling, M. & Teh, Y. W. (2011). *Bayesian Learning via Stochastic Gradient Langevin Dynamics.* ICML.
 - Li, C., Chen, C., Carlson, D., & Carin, L. (2016). *Preconditioned Stochastic Gradient Langevin Dynamics for Deep Neural Networks.* AAAI.
 - Polyak, B. T. (1963). *Gradient methods for minimizing functionals.* Zh. Vychisl. Mat. Mat. Fiz., 3(4), 643–653.
+- Gretton, A., Borgwardt, K. M., Rasch, M. J., Schölkopf, B., & Smola, A. (2012). *A Kernel Two-Sample Test.* JMLR, 13:723–773.
+- Feydy, J., Séjourné, T., Vialard, F.-X., Amari, S., Trouvé, A., & Peyré, G. (2019). *Interpolating between Optimal Transport and MMD using Sinkhorn Divergences.* AISTATS.
 - Villani, C. (2003). *Topics in Optimal Transportation.* AMS Graduate Studies in Mathematics, vol. 58.
