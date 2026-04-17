@@ -40,9 +40,8 @@ import numpy as np
 import torch
 import matplotlib.pyplot as plt
 import matplotlib.lines as mlines
-from sklearn.datasets import fetch_california_housing
 
-from ..config import DEVICE, OUTPUT_DIR, DARK_BG, PANEL_BG, TXT, GRID_C, style_ax
+from ..config import DEVICE, OUTPUT_DIR, DARK_BG, PANEL_BG, TXT, style_ax
 from ..data import get_california_regression
 from ..model import MeanFieldResNet
 from ..train import train
@@ -89,9 +88,12 @@ def experiment_K(epsilon_grid=None, n_epochs=500, n_prior=1_000,
 
     # ── 1. Datos ────────────────────────────────────────────────────────────
     ds   = get_california_regression(n_train=n_train, n_test=n_test)
-    X_tr = ds['X_train'];  y_tr = ds['y_train']
-    X_te = ds['X_test'];   y_te = ds['y_test']
-    y_tr_np = y_tr.cpu().numpy();  y_te_np = y_te.cpu().numpy()
+    X_tr = ds['X_train']
+    y_tr = ds['y_train']
+    X_te = ds['X_test']
+    y_te = ds['y_test']
+    y_tr_np = y_tr.cpu().numpy()
+    y_te_np = y_te.cpu().numpy()
     print(f"  Varianza explicada PCA(2): {ds['explained_var']:.1%}")
 
     # ── 2. Precomputar prior samples para cada ε ─────────────────────────────
@@ -118,7 +120,8 @@ def experiment_K(epsilon_grid=None, n_epochs=500, n_prior=1_000,
         ]
 
         for name, kwargs in configs:
-            torch.manual_seed(42);  np.random.seed(42)
+            torch.manual_seed(42)
+            np.random.seed(42)
             m = MeanFieldResNet(task='regression').to(DEVICE)
             h = train(m, X_tr, y_tr, epsilon=eps, n_epochs=n_epochs,
                       verbose=False, **kwargs)
@@ -257,7 +260,7 @@ def experiment_K(epsilon_grid=None, n_epochs=500, n_prior=1_000,
     handles = [
         mlines.Line2D([], [], color='gray',  lw=0, marker='s', markersize=9,
                       markerfacecolor='gray', alpha=0.40,
-                      label=f'ε=0.01 (exp J)'),
+                      label='ε=0.01 (exp J)'),
         mlines.Line2D([], [], color='gray',  lw=0, marker='s', markersize=9,
                       markerfacecolor='gray', alpha=0.70,
                       label=f'ε={best_shared} (compartido óptimo)'),

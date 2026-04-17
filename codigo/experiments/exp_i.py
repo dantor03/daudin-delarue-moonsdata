@@ -42,7 +42,6 @@ import os
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
-import matplotlib.lines as mlines
 from scipy.ndimage import uniform_filter1d
 from sklearn.datasets import make_moons
 from sklearn.preprocessing import StandardScaler

@@ -45,7 +45,7 @@ from scipy.stats import gaussian_kde
 from sklearn.datasets import make_moons
 from sklearn.preprocessing import StandardScaler
 
-from ..config import DEVICE, OUTPUT_DIR, DARK_BG, PANEL_BG, TXT, GRID_C, style_ax
+from ..config import DEVICE, OUTPUT_DIR, DARK_BG, PANEL_BG, TXT, style_ax
 from ..model import MeanFieldResNet
 from ..train import train
 from ..metrics import (
@@ -113,7 +113,7 @@ def experiment_H(n_epochs=800, n_snapshot_steps=2_000, thin=10,
     torch.manual_seed(42)
     np.random.seed(42)
     model = MeanFieldResNet().to(DEVICE)
-    print(f"\n  [1/4] Entrenando con pSGLD...")
+    print("\n  [1/4] Entrenando con pSGLD...")
     train(model, X, y, epsilon=epsilon, n_epochs=n_epochs,
           verbose=True, use_sgld=True)
 

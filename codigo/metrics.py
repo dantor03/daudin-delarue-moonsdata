@@ -88,8 +88,10 @@ def mmd_rbf(X, Y, sigma=None):
         d = A.unsqueeze(1) - B.unsqueeze(0)           # (n, m, d)
         return torch.exp(-(d ** 2).sum(-1) / (2.0 * sigma ** 2))
 
-    Kxx = K(X, X); Kxx.fill_diagonal_(0.0)
-    Kyy = K(Y, Y); Kyy.fill_diagonal_(0.0)
+    Kxx = K(X, X)
+    Kxx.fill_diagonal_(0.0)
+    Kyy = K(Y, Y)
+    Kyy.fill_diagonal_(0.0)
     Kxy = K(X, Y)
     n, m = X.shape[0], Y.shape[0]
 

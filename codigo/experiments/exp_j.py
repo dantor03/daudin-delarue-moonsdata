@@ -37,7 +37,6 @@ import torch
 import matplotlib.pyplot as plt
 import matplotlib.lines as mlines
 from scipy.ndimage import uniform_filter1d
-from scipy.stats import gaussian_kde
 
 from ..config import DEVICE, OUTPUT_DIR, DARK_BG, PANEL_BG, TXT, GRID_C, style_ax
 from ..data import get_california_regression
@@ -256,7 +255,8 @@ def experiment_J(n_epochs=700, epsilon=0.01, n_prior=2_000,
     ]
     style_ax(ax4, 'J4 — Predicción vs Real (test set, target estandarizado)',
              'Real (y)', 'Predicho (ŷ)')
-    ax4.set_xlim(lims); ax4.set_ylim(lims)
+    ax4.set_xlim(lims)
+    ax4.set_ylim(lims)
     ax4.legend(handles=handles, facecolor=PANEL_BG, labelcolor=TXT,
                fontsize=8.5, ncol=4)
 
