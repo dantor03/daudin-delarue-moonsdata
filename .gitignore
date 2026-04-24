@@ -36,3 +36,6 @@ docs/*.pdf
 # Figuras generadas
 figuras/
 !figuras/*.png
+
+# Cache de Folktables (ACS PUMS descargado por folktables.ACSDataSource)
+data/
